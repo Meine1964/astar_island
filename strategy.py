@@ -16,25 +16,49 @@ DYNAMIC_RADIUS = 7
 
 # ── Empirical bias correction from ground truth ───────────────────────
 # Loaded once; maps distance_bucket -> (6,) probability target
-_BIAS_CORRECTION = None
+# Also carries learned priors per (init_class, dist_bucket, coastal)
+_BIAS_DATA = None
 
-def _load_bias_correction():
-    global _BIAS_CORRECTION
-    if _BIAS_CORRECTION is not None:
-        return _BIAS_CORRECTION
+def _load_bias_data():
+    global _BIAS_DATA
+    if _BIAS_DATA is not None:
+        return _BIAS_DATA
     try:
         with open("bias_correction.json") as f:
             data = json.load(f)
-        _BIAS_CORRECTION = {}
-        for db_str, probs in data["gt_by_dist_bucket"].items():
-            _BIAS_CORRECTION[int(db_str)] = np.array(probs)
-        return _BIAS_CORRECTION
+        bias_by_dist = {}
+        for db_str, probs in data.get("gt_by_dist_bucket", {}).items():
+            bias_by_dist[int(db_str)] = np.array(probs)
+        learned_priors = {}
+        for key_str, probs in data.get("learned_priors_coastal", {}).items():
+            parts = key_str.split("_")
+            learned_priors[(int(parts[0]), int(parts[1]), int(parts[2]))] = np.array(probs)
+        # Fallback: priors without coastal dimension
+        for key_str, probs in data.get("learned_priors", {}).items():
+            parts = key_str.split("_")
+            key = (int(parts[0]), int(parts[1]))
+            if key not in learned_priors:  # don't overwrite coastal-specific
+                learned_priors[key] = np.array(probs)
+        _BIAS_DATA = {"bias_by_dist": bias_by_dist, "learned_priors": learned_priors}
+        return _BIAS_DATA
     except FileNotFoundError:
-        _BIAS_CORRECTION = {}
-        return _BIAS_CORRECTION
+        _BIAS_DATA = {"bias_by_dist": {}, "learned_priors": {}}
+        return _BIAS_DATA
 
 
 # ── Feature extraction ─────────────────────────────────────────────────
+
+def _dist_to_bucket(d):
+    """Finer distance buckets: 0,1,2,3, 4-5, 6-7, 8+."""
+    if d <= 3:
+        return d
+    elif d <= 5:
+        return 4
+    elif d <= 7:
+        return 5
+    else:
+        return 6
+
 
 def compute_features(init_grid, settlements, W, H):
     """Per-cell feature tuple (init_class, dist_bucket, coastal, density)."""
@@ -66,8 +90,7 @@ def compute_features(init_grid, settlements, W, H):
     for y in range(H):
         for x in range(W):
             ic = CODE_TO_CLASS.get(init_grid[y][x], 0)
-            d = dist_map[y, x]
-            db = d if d <= 3 else (4 if d <= 6 else 5)
+            db = _dist_to_bucket(dist_map[y, x])
             features[y, x] = [ic, db, coastal[y, x], min(density[y, x], 3)]
     return features
 
@@ -77,43 +100,66 @@ def compute_features(init_grid, settlements, W, H):
 _prior_cache = {}
 
 def domain_prior(init_class, dist_bucket, is_coastal):
-    """Hand-tuned fallback prior."""
+    """Data-driven prior from ground truth, with hand-tuned fallback."""
     key = (init_class, dist_bucket, is_coastal)
     if key in _prior_cache:
         return _prior_cache[key].copy()
 
+    # Try learned prior from GT data (most specific first)
+    data = _load_bias_data()
+    learned = data["learned_priors"]
+    if key in learned:
+        p = learned[key].copy()
+        p = np.maximum(p, MIN_PROB)
+        p /= p.sum()
+        _prior_cache[key] = p.copy()
+        return p
+    # Try without coastal
+    key2 = (init_class, dist_bucket)
+    if key2 in learned:
+        p = learned[key2].copy()
+        p = np.maximum(p, MIN_PROB)
+        p /= p.sum()
+        _prior_cache[key] = p.copy()
+        return p
+
+    # Hand-tuned fallback for rare combinations
     p = np.full(NUM_CLASSES, MIN_PROB)
     ic, db, co = init_class, dist_bucket, is_coastal
 
     if ic == 5:
         p[5] = 1.0
     elif ic == 0:
-        if db >= 4:
+        if db >= 5:
             p[0] = 0.94; p[4] = 0.04
-        elif db >= 2:
-            p[0] = 0.70; p[4] = 0.09; p[1] = 0.08; p[3] = 0.07
-            p[2] = 0.04 if co else 0.01
+        elif db >= 3:
+            p[0] = 0.80; p[4] = 0.06; p[1] = 0.06; p[3] = 0.04
+            p[2] = 0.03 if co else 0.01
+        elif db >= 1:
+            p[0] = 0.72; p[1] = 0.18; p[3] = 0.02; p[4] = 0.05
+            p[2] = 0.02 if co else 0.005
         else:
-            p[0] = 0.38; p[1] = 0.22; p[3] = 0.15; p[4] = 0.10
-            p[2] = 0.13 if co else 0.02
+            p[0] = 0.46; p[1] = 0.29; p[3] = 0.02; p[4] = 0.22
+            p[2] = 0.01 if co else 0.005
     elif ic == 1:
         if co:
-            p[1] = 0.24; p[2] = 0.28; p[3] = 0.24; p[0] = 0.16; p[4] = 0.06
+            p[0] = 0.48; p[1] = 0.09; p[2] = 0.16; p[3] = 0.02; p[4] = 0.23
         else:
-            p[1] = 0.34; p[3] = 0.28; p[0] = 0.18; p[4] = 0.14; p[2] = 0.04
+            p[0] = 0.46; p[1] = 0.30; p[3] = 0.02; p[4] = 0.22
     elif ic == 2:
-        p[2] = 0.36; p[3] = 0.26; p[1] = 0.16; p[0] = 0.14; p[4] = 0.06
+        p[0] = 0.48; p[1] = 0.09; p[2] = 0.17; p[3] = 0.02; p[4] = 0.23
     elif ic == 3:
-        p[0] = 0.24; p[4] = 0.24; p[3] = 0.22; p[1] = 0.18
-        p[2] = 0.10 if co else 0.03
+        p[0] = 0.50; p[4] = 0.20; p[3] = 0.12; p[1] = 0.15
+        p[2] = 0.03 if co else 0.01
     elif ic == 4:
-        if db >= 4:
-            p[4] = 0.94; p[0] = 0.04
-        elif db >= 2:
-            p[4] = 0.76; p[0] = 0.10; p[1] = 0.06; p[3] = 0.06
+        if db >= 5:
+            p[4] = 0.94; p[0] = 0.02
+        elif db >= 3:
+            p[4] = 0.77; p[0] = 0.08; p[1] = 0.13; p[3] = 0.01
+        elif db >= 1:
+            p[4] = 0.63; p[0] = 0.14; p[1] = 0.20; p[3] = 0.02
         else:
-            p[4] = 0.46; p[0] = 0.15; p[1] = 0.15; p[3] = 0.12
-            p[2] = 0.09 if co else 0.02
+            p[4] = 0.22; p[0] = 0.46; p[1] = 0.29; p[3] = 0.01
 
     p = np.maximum(p, MIN_PROB)
     p /= p.sum()
@@ -350,7 +396,8 @@ def execute_adaptive_queries(session, base_url, round_id, seed_info,
                               obs, obs_n, model, sim_priors,
                               seeds, H, W, budget, delay=0.0,
                               submit_fn=None, submit_every=10,
-                              query_log_fn=None):
+                              query_log_fn=None,
+                              settlement_stats=None):
     """Execute queries adaptively, choosing the best viewport after each query.
 
     Args:
@@ -359,8 +406,11 @@ def execute_adaptive_queries(session, base_url, round_id, seed_info,
         submit_every: How often to call submit_fn.
         query_log_fn: Optional callback(query_num, seed_index, viewport, result)
                       called after each successful query for logging.
+        settlement_stats: Optional dict to accumulate settlement stats per seed.
+                          Maps seed_index -> list of {x, y, population, food, ...}.
     """
     total_q = 0
+    low_info_streak = 0  # for early stopping
 
     for q in range(budget):
         si, vp, info_score = select_best_viewport(
@@ -387,6 +437,14 @@ def execute_adaptive_queries(session, base_url, round_id, seed_info,
                 obs_n[si][gy, gx] += 1
                 model.observe(tuple(feats[gy, gx]), cls)
 
+        # Extract settlement stats from response
+        if settlement_stats is not None and "settlements" in result:
+            if si not in settlement_stats:
+                settlement_stats[si] = {}
+            for s in result["settlements"]:
+                skey = (s["x"], s["y"])
+                settlement_stats[si][skey] = s
+
         total_q += 1
         n_observed = int((obs_n[si] > 0).sum())
         print(f"  Q{total_q}: S{si} ({rv['x']},{rv['y']}) {rv['w']}x{rv['h']} "
@@ -398,6 +456,16 @@ def execute_adaptive_queries(session, base_url, round_id, seed_info,
 
         if result["queries_used"] >= result["queries_max"]:
             break
+
+        # Budget-aware early stopping: if info gain is consistently low, stop
+        if info_score < 20.0:
+            low_info_streak += 1
+            if low_info_streak >= 5 and total_q >= budget * 0.6:
+                print(f"  Early stop: info gain below threshold for "
+                      f"{low_info_streak} queries")
+                break
+        else:
+            low_info_streak = 0
 
         # Periodic submission
         if submit_fn and total_q % submit_every == 0:
@@ -412,15 +480,21 @@ def execute_adaptive_queries(session, base_url, round_id, seed_info,
 
 # ── Simulator prior ────────────────────────────────────────────────────
 
-def compute_simulator_prior(init_grid, init_settlements, W, H, n_sims=100, params=None):
+def compute_simulator_prior(init_grid, init_settlements, W, H, n_sims=100,
+                            params=None, ensemble=True):
     """Run our local simulator on the real initial state to get a per-cell prior.
 
     Returns an (H, W, 6) probability distribution — much better than hand-tuned
     domain_prior because it uses the actual map layout and settlement positions.
+
+    If ensemble=True, runs with ±20% variations on key parameters to be robust
+    against server parameter drift.
     """
     from astar_island_simulator.env import (
         AstarIslandSimulator, HiddenParams, Settlement as SimSettlement,
     )
+    from dataclasses import asdict, fields
+
     if params is None:
         try:
             with open("calibrated_params.json") as f:
@@ -442,23 +516,44 @@ def compute_simulator_prior(init_grid, init_settlements, W, H, n_sims=100, param
             owner_id=i,
         ))
 
-    sim = AstarIslandSimulator.__new__(AstarIslandSimulator)
-    sim.map_seed = 0
-    sim.params = params
-    sim.width = W
-    sim.height = H
-    sim.base_grid = grid_np
-    sim.base_settlements = settlements_base
+    # Build parameter ensemble: baseline + variations
+    param_sets = [params]
+    if ensemble:
+        vary_keys = ["winter_base_severity", "food_per_forest", "food_per_plains",
+                     "collapse_food_threshold", "expansion_prob"]
+        base_dict = asdict(params)
+        for key in vary_keys:
+            base_val = base_dict[key]
+            for factor in [0.7, 1.3]:
+                varied = base_dict.copy()
+                varied[key] = base_val * factor
+                field_names = {f.name for f in fields(HiddenParams)}
+                param_sets.append(HiddenParams(**{k: v for k, v in varied.items()
+                                                   if k in field_names}))
 
+    # Distribute sims across parameter sets
+    sims_per_param = max(10, n_sims // len(param_sets))
     counts = np.zeros((H, W, NUM_CLASSES))
-    for i in range(n_sims):
-        final_grid, _ = sim.run(sim_seed=i)
-        for y in range(H):
-            for x in range(W):
-                cls = CODE_TO_CLASS.get(int(final_grid[y, x]), 0)
-                counts[y, x, cls] += 1
+    total_sims = 0
 
-    prior = counts / n_sims
+    for pi, p in enumerate(param_sets):
+        sim = AstarIslandSimulator.__new__(AstarIslandSimulator)
+        sim.map_seed = 0
+        sim.params = p
+        sim.width = W
+        sim.height = H
+        sim.base_grid = grid_np
+        sim.base_settlements = settlements_base
+
+        for i in range(sims_per_param):
+            final_grid, _ = sim.run(sim_seed=pi * 1000 + i)
+            for y in range(H):
+                for x in range(W):
+                    cls = CODE_TO_CLASS.get(int(final_grid[y, x]), 0)
+                    counts[y, x, cls] += 1
+            total_sims += 1
+
+    prior = counts / total_sims
     prior = np.maximum(prior, MIN_PROB)
     prior /= prior.sum(axis=2, keepdims=True)
     return prior
@@ -467,11 +562,13 @@ def compute_simulator_prior(init_grid, init_settlements, W, H, n_sims=100, param
 # ── Prediction building ───────────────────────────────────────────────
 
 def build_prediction(seed_info_entry, obs_si, obs_n_si, model, H, W,
-                     sim_prior=None):
+                     sim_prior=None, settlement_stats=None):
     """Build the HxWx6 prediction tensor for one seed.
 
     If sim_prior (HxWx6) is provided, it replaces the hand-tuned domain_prior
     as the fallback for unobserved cells.
+    If settlement_stats is provided (dict of (x,y) -> stat_dict), use settlement
+    health to weight nearby cell predictions.
     """
     grid = seed_info_entry["grid"]
     feats = seed_info_entry["features"]
@@ -512,7 +609,8 @@ def build_prediction(seed_info_entry, obs_si, obs_n_si, model, H, W,
             pred[y, x] = p
 
     # ── Bias correction: nudge toward empirical ground truth ──────────
-    bias = _load_bias_correction()
+    data = _load_bias_data()
+    bias = data["bias_by_dist"]
     if bias:
         for y in range(H):
             for x in range(W):
@@ -527,6 +625,64 @@ def build_prediction(seed_info_entry, obs_si, obs_n_si, model, H, W,
                 # Tuned on Round 7 ground truth: base_alpha=0.15, decay=0.5
                 alpha = 0.15 / (1.0 + n * 0.5)
                 pred[y, x] = (1.0 - alpha) * pred[y, x] + alpha * gt_target
+
+    # ── Spatial propagation: smooth predictions using observed neighbors ──
+    # If a cell is unobserved but has observed neighbors, blend toward neighbors
+    smoothed = pred.copy()
+    for y in range(H):
+        for x in range(W):
+            cell = grid[y][x]
+            if cell == 5 or cell == 10:
+                continue
+            if obs_n_si[y, x] >= 3:
+                continue  # well-observed cells don't need smoothing
+            # Gather observed neighbor predictions
+            neighbor_sum = np.zeros(NUM_CLASSES)
+            neighbor_weight = 0.0
+            for dy in range(-2, 3):
+                for dx in range(-2, 3):
+                    if dy == 0 and dx == 0:
+                        continue
+                    ny, nx = y + dy, x + dx
+                    if 0 <= ny < H and 0 <= nx < W and obs_n_si[ny, nx] >= 2:
+                        d = abs(dy) + abs(dx)
+                        w = obs_n_si[ny, nx] / (d * d)
+                        neighbor_sum += pred[ny, nx] * w
+                        neighbor_weight += w
+            if neighbor_weight > 1.0:
+                neighbor_pred = neighbor_sum / neighbor_weight
+                # Light blend: 10-20% toward neighbors for unobserved cells
+                blend = 0.15 if obs_n_si[y, x] == 0 else 0.08
+                smoothed[y, x] = (1.0 - blend) * pred[y, x] + blend * neighbor_pred
+    pred = smoothed
+
+    # ── Settlement stats adjustment ──────────────────────────────────
+    # If we observed settlement health, adjust nearby cells' settlement prob
+    if settlement_stats:
+        for (sx, sy), stats in settlement_stats.items():
+            pop = stats.get("population", 10)
+            food = stats.get("food", 5.0)
+            alive = stats.get("alive", True)
+            if not alive:
+                continue
+            # Healthy settlement (high pop+food) → boost settlement class nearby
+            health = min(1.0, (pop / 25.0 + food / 15.0) / 2.0)
+            # Adjust cells within radius 3
+            for dy in range(-3, 4):
+                for dx in range(-3, 4):
+                    ny, nx = sy + dy, sx + dx
+                    if 0 <= ny < H and 0 <= nx < W:
+                        cell_n = grid[ny][nx]
+                        if cell_n == 5 or cell_n == 10:
+                            continue
+                        d = abs(dy) + abs(dx)
+                        if d == 0 or d > 3:
+                            continue
+                        # Small adjustment: shift toward settlement class
+                        adj = 0.05 * health / d
+                        pred[ny, nx, 1] += adj
+                        pred[ny, nx, 0] -= adj * 0.5
+                        pred[ny, nx, 4] -= adj * 0.5
 
     pred = np.maximum(pred, MIN_PROB)
     pred /= pred.sum(axis=2, keepdims=True)

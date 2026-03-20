@@ -368,15 +368,18 @@ def build_param_grid():
     and that most affect the outcome distribution.
     """
     return {
-        "winter_base_severity": [1.0, 1.5, 2.0, 2.5, 3.0],
-        "winter_severity_variance": [1.0, 1.5, 2.0],
-        "collapse_food_threshold": [-5.0, -3.0, -1.0, 0.0],
-        "food_per_forest": [2.0, 3.0, 4.0],
-        "food_per_plains": [0.5, 1.0, 1.5],
+        "winter_base_severity": [2.0, 3.0, 4.0, 5.0, 6.0],
+        "winter_severity_variance": [1.0, 1.5, 2.0, 2.5],
+        "collapse_food_threshold": [-2.0, -1.0, -0.5, 0.0, 1.0],
+        "food_per_forest": [1.0, 1.5, 2.0, 3.0],
+        "food_per_plains": [0.3, 0.5, 0.8, 1.0],
         "desperate_food_threshold": [2.0, 3.0, 5.0],
         "raid_strength_factor": [0.2, 0.3, 0.4],
-        "forest_regrowth_prob": [0.05, 0.10, 0.15, 0.20],
-        "expansion_pop_threshold": [10, 15, 20],
+        "forest_regrowth_prob": [0.15, 0.20, 0.25, 0.30],
+        "expansion_pop_threshold": [15, 20, 25, 30],
+        "expansion_prob": [0.03, 0.05, 0.08],
+        "port_creation_prob": [0.10, 0.15, 0.20],
+        "ruin_reclaim_prob": [0.05, 0.10, 0.15],
     }
 
 
@@ -404,9 +407,9 @@ def calibrate(stats, base_params=None, n_sims_per_eval=15):
 
     # Focus on the 3 most impactful parameters first
     coarse_grid = {
-        "winter_base_severity": [1.0, 2.5, 4.0],
-        "collapse_food_threshold": [-5.0, -2.0, 0.0],
-        "food_per_forest": [2.0, 3.0, 4.0],
+        "winter_base_severity": [2.5, 4.0, 5.5],
+        "collapse_food_threshold": [-1.0, -0.5, 0.5],
+        "food_per_forest": [1.0, 1.5, 2.5],
     }
 
     best_loss = float("inf")

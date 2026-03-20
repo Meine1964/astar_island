@@ -90,6 +90,7 @@ for si in range(seeds):
 # ── Step 6: Submit simulator-prior baseline (free safety net) ─────────
 obs = {i: np.zeros((H, W, NUM_CLASSES)) for i in range(seeds)}
 obs_n = {i: np.zeros((H, W)) for i in range(seeds)}
+settlement_stats = {}  # seed_index -> {(x,y) -> stats}
 
 print("\n-- Submission #0: simulator-prior baseline --")
 for si in range(seeds):
@@ -112,7 +113,8 @@ def submit_all(query_count):
     print(f"\n-- Submission #{submit_count}: after {query_count} queries --")
     for sj in range(seeds):
         pred = build_prediction(seed_info[sj], obs[sj], obs_n[sj], model, H, W,
-                                sim_prior=sim_priors[sj])
+                                sim_prior=sim_priors[sj],
+                                settlement_stats=settlement_stats.get(sj))
         resp = session.post(f"{BASE}/submit", json={
             "round_id": round_id, "seed_index": sj,
             "prediction": pred.tolist(),
@@ -130,6 +132,7 @@ total_q = execute_adaptive_queries(
     submit_fn=submit_all, submit_every=10,
     query_log_fn=lambda qn, si, vp, res: data_store.append_query(
         round_num, qn, si, vp, res),
+    settlement_stats=settlement_stats,
 )
 print(f"\nQueries executed: {total_q}")
 data_store.save_observations(round_num, obs, obs_n, seeds)
@@ -139,7 +142,8 @@ submit_count += 1
 print(f"\n-- Final submission #{submit_count}: after {total_q} queries --")
 for si in range(seeds):
     pred = build_prediction(seed_info[si], obs[si], obs_n[si], model, H, W,
-                            sim_prior=sim_priors[si])
+                            sim_prior=sim_priors[si],
+                            settlement_stats=settlement_stats.get(si))
     data_store.save_prediction(round_num, si, pred)
     resp = session.post(f"{BASE}/submit", json={
         "round_id": round_id, "seed_index": si,

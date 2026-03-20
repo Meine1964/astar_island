@@ -67,7 +67,7 @@ for si in range(seeds):
     state = detail["initial_states"][si]
     setts = [s for s in state["settlements"] if s.get("alive", True)]
     sim_priors[si] = compute_simulator_prior(
-        state["grid"], setts, W, H, n_sims=100, params=params
+        state["grid"], setts, W, H, n_sims=100, params=params, ensemble=False
     )
     n_dynamic = int((sim_priors[si].max(axis=2) < 0.95).sum())
     print(f"  Seed {si}: {n_dynamic} dynamic cells in simulator prior")
@@ -75,12 +75,14 @@ for si in range(seeds):
 # ── Step 6: Adaptive query execution ──────────────────────────────────
 obs = {i: np.zeros((H, W, NUM_CLASSES)) for i in range(seeds)}
 obs_n = {i: np.zeros((H, W)) for i in range(seeds)}
+settlement_stats = {}
 
 print(f"\nAdaptive query selection ({remaining} queries)...")
 total_q = execute_adaptive_queries(
     session, BASE, round_id, seed_info,
     obs, obs_n, model, sim_priors,
     seeds, H, W, budget=remaining, delay=0,
+    settlement_stats=settlement_stats,
 )
 print(f"\nQueries executed: {total_q}")
 print(f"Cross-seed model: {len(model.counts)} buckets, "

@@ -58,13 +58,13 @@ print(f"Historical calibration: {n_hist} seed-rounds, {len(model.counts)} bucket
 seed_info = analyze_seeds(detail, seeds)
 
 # ── Compute simulator priors ──────────────────────────────────────────
-print("\nComputing simulator priors (30 sims per seed)...")
+print("\nComputing ensemble simulator priors (100 sims per seed)...")
 sim_priors = {}
 for si in range(seeds):
     state = detail["initial_states"][si]
     setts = [s for s in state["settlements"] if s.get("alive", True)]
     sim_priors[si] = compute_simulator_prior(
-        state["grid"], setts, W, H, n_sims=30
+        state["grid"], setts, W, H, n_sims=100, ensemble=True
     )
     n_dynamic = int((sim_priors[si].max(axis=2) < 0.95).sum())
     print(f"  Seed {si}: {n_dynamic} dynamic cells")

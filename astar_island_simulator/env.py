@@ -57,13 +57,15 @@ class HiddenParams:
     min_settlement_spacing: int = 4
 
     # -- Growth --
-    food_per_forest: float = 3.0        # food from each adjacent forest cell
-    food_per_plains: float = 1.0        # food from each adjacent plains cell
-    growth_food_threshold: float = 8.0  # food needed to grow population
+    food_per_forest: float = 1.5        # food from each adjacent forest cell
+    food_per_plains: float = 0.5        # food from each adjacent plains cell
+    growth_food_threshold: float = 10.0 # food needed to grow population
     port_wealth_threshold: float = 6.0  # wealth needed to become a port
     longship_tech_threshold: float = 5.0
-    expansion_pop_threshold: int = 15   # population to found new settlement
+    expansion_pop_threshold: int = 25   # population to found new settlement
     expansion_radius: int = 3
+    expansion_prob: float = 0.05        # prob of founding new settlement
+    port_creation_prob: float = 0.15    # prob of building a port
 
     # -- Conflict --
     raid_range: int = 4
@@ -80,15 +82,16 @@ class HiddenParams:
     tech_diffusion_rate: float = 0.1
 
     # -- Winter --
-    winter_base_severity: float = 2.0
-    winter_severity_variance: float = 1.5
-    collapse_food_threshold: float = -3.0  # below this -> ruin
+    winter_base_severity: float = 4.0
+    winter_severity_variance: float = 2.0
+    collapse_food_threshold: float = -0.5  # below this -> ruin
 
     # -- Environment --
     reclaim_radius: int = 3
-    reclaim_pop_threshold: int = 8
-    forest_regrowth_prob: float = 0.15    # prob ruin becomes forest per year
-    plains_regrowth_prob: float = 0.10    # prob ruin becomes plains per year
+    reclaim_pop_threshold: int = 15
+    ruin_reclaim_prob: float = 0.10       # prob of reclaiming a ruin
+    forest_regrowth_prob: float = 0.25    # prob ruin becomes forest per year
+    plains_regrowth_prob: float = 0.20    # prob ruin becomes plains per year
 
     # -- Simulation --
     n_years: int = 50
@@ -367,7 +370,7 @@ class AstarIslandSimulator:
 
             # Port development
             if not s.has_port and self._is_coastal(grid, s.x, s.y):
-                if s.wealth >= p.port_wealth_threshold and rng.random() < 0.3:
+                if s.wealth >= p.port_wealth_threshold and rng.random() < p.port_creation_prob:
                     s.has_port = True
                     grid[s.y, s.x] = PORT
 
@@ -377,7 +380,7 @@ class AstarIslandSimulator:
                     s.has_longship = True
 
             # Expansion: found new settlement
-            if s.population >= p.expansion_pop_threshold and rng.random() < 0.15:
+            if s.population >= p.expansion_pop_threshold and rng.random() < p.expansion_prob:
                 candidates = []
                 r = p.expansion_radius
                 for dy in range(-r, r + 1):
@@ -547,7 +550,7 @@ class AstarIslandSimulator:
             reclaimed = False
             for s in alive:
                 if self._distance(s, Settlement(x=rx, y=ry)) <= p.reclaim_radius:
-                    if s.population >= p.reclaim_pop_threshold and rng.random() < 0.2:
+                    if s.population >= p.reclaim_pop_threshold and rng.random() < p.ruin_reclaim_prob:
                         coastal = self._is_coastal(grid, rx, ry)
                         new_s = Settlement(
                             x=rx, y=ry,
