@@ -62,9 +62,9 @@ class HiddenParams:
     growth_food_threshold: float = 10.0 # food needed to grow population
     port_wealth_threshold: float = 6.0  # wealth needed to become a port
     longship_tech_threshold: float = 5.0
-    expansion_pop_threshold: int = 35   # population to found new settlement
+    expansion_pop_threshold: int = 25   # population to found new settlement
     expansion_radius: int = 3
-    expansion_prob: float = 0.12        # prob of founding new settlement
+    expansion_prob: float = 0.15        # prob of founding new settlement
     port_creation_prob: float = 0.20    # prob of building a port
 
     # -- Conflict --
@@ -357,7 +357,7 @@ class AstarIslandSimulator:
             if s.food > p.growth_food_threshold:
                 growth = max(1, int(s.food / p.growth_food_threshold))
                 s.population += growth
-                s.food -= growth * 1.5
+                s.food -= growth * 1.5  # food cost of growth
 
             # Tech growth (slow)
             s.tech_level += 0.05 + 0.01 * s.wealth
@@ -506,14 +506,14 @@ class AstarIslandSimulator:
                        + rng.normal(0, p.winter_severity_variance))
 
         for s in self._alive(settlements):
-            # Food loss
-            food_loss = severity * (1 + s.population * 0.1)
+            # Food loss — scales linearly but gently with population
+            food_loss = severity * (1.0 + 0.02 * s.population)
             s.food -= food_loss
 
             # Population loss from harsh winter
-            if severity > 4:
-                pop_loss = max(1, int(severity * 0.3))
-                s.population = max(0, s.population - pop_loss)
+            if severity > 5:
+                pop_loss = max(1, int((severity - 4) * 0.2))
+                s.population = max(1, s.population - pop_loss)
 
             # Collapse check
             if s.food < p.collapse_food_threshold or s.population <= 0:
