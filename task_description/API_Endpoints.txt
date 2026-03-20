@@ -1,0 +1,83 @@
+API ENDPOINT SPECIFICATION
+==========================
+
+BASE URL: https://api.ainm.no/astar-island
+
+Authentication: All endpoints require auth (except public ones).
+- Cookie: access_token JWT cookie (set when you log in at app.ainm.no)
+- Bearer token: Authorization: Bearer <token> header
+Both use the same JWT token.
+
+ENDPOINTS OVERVIEW
+| Method | Path                                        | Auth   | Description                          |
+|--------|---------------------------------------------|--------|--------------------------------------|
+| GET    | /astar-island/rounds                        | Public | List all rounds                      |
+| GET    | /astar-island/rounds/{round_id}             | Public | Round details + initial states       |
+| GET    | /astar-island/budget                        | Team   | Query budget for active round        |
+| POST   | /astar-island/simulate                      | Team   | Observe one simulation via viewport  |
+| POST   | /astar-island/submit                        | Team   | Submit prediction tensor             |
+| GET    | /astar-island/my-rounds                     | Team   | Rounds with your scores, rank, budget|
+| GET    | /astar-island/my-predictions/{round_id}     | Team   | Your predictions with argmax/conf    |
+| GET    | /astar-island/analysis/{round_id}/{seed_idx}| Team   | Post-round ground truth comparison   |
+| GET    | /astar-island/leaderboard                   | Public | Astar Island leaderboard             |
+
+ROUND STATUS VALUES
+| Status    | Meaning                              |
+|-----------|--------------------------------------|
+| pending   | Round created but not yet started    |
+| active    | Queries and submissions open         |
+| scoring   | Submissions closed, scoring in progress |
+| completed | Scores finalized                     |
+
+GET /astar-island/rounds
+  Returns list of rounds with: id, round_number, event_date, status,
+  map_width, map_height, prediction_window_minutes, started_at, closes_at,
+  round_weight, created_at.
+
+GET /astar-island/rounds/{round_id}
+  Returns round details including initial map states for all seeds.
+  Settlement data shows only position and port status (not internal stats).
+  Response includes: id, round_number, status, map_width, map_height,
+  seeds_count, initial_states[].grid (height x width terrain codes),
+  initial_states[].settlements[{x, y, has_port, alive}].
+
+  Grid cell values: 0=Empty, 1=Settlement, 2=Port, 3=Ruin, 4=Forest,
+  5=Mountain, 10=Ocean, 11=Plains.
+
+GET /astar-island/budget
+  Returns: round_id, queries_used, queries_max, active.
+
+POST /astar-island/simulate
+  Core observation endpoint. Each call runs one stochastic simulation and
+  reveals a viewport window. Costs one query from your budget (50 per round).
+
+  Request body:
+    round_id     string      UUID of the active round
+    seed_index   int (0-4)   Which of the 5 seeds to simulate
+    viewport_x   int (>=0)   Left edge of viewport (default 0)
+    viewport_y   int (>=0)   Top edge of viewport (default 0)
+    viewport_w   int (5-15)  Viewport width (default 15)
+    viewport_h   int (5-15)  Viewport height (default 15)
+
+  Response:
+    grid          - viewport_h x viewport_w terrain codes (viewport only!)
+    settlements   - settlements within viewport with full stats:
+                    x, y, population, food, wealth, defense, has_port, alive, owner_id
+    viewport      - {x, y, w, h} actual bounds (clamped to map edges)
+    width, height - full map dimensions
+    queries_used, queries_max
+
+  Each call uses a different random sim_seed => different stochastic outcome.
+
+POST /astar-island/submit
+  Request body:
+    round_id     string
+    seed_index   int (0-4)
+    prediction   height x width x 6 array (probabilities per cell, must sum to 1.0)
+
+RATE LIMITS
+| Endpoint       | Limit                    |
+|----------------|--------------------------|
+| POST /simulate | 5 requests/sec per team  |
+| POST /submit   | 2 requests/sec per team  |
+Exceeding returns 429 Too Many Requests.

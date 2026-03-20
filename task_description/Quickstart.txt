@@ -1,0 +1,65 @@
+ASTAR ISLAND — QUICKSTART
+==========================
+
+AUTHENTICATION
+All endpoints require authentication. Log in at app.ainm.no, then grab your
+access_token JWT from browser cookies.
+
+Two options:
+  # Cookie-based auth
+  session = requests.Session()
+  session.cookies.set("access_token", "YOUR_JWT_TOKEN")
+
+  # Bearer token auth
+  session = requests.Session()
+  session.headers["Authorization"] = "Bearer YOUR_JWT_TOKEN"
+
+STEP 1: GET THE ACTIVE ROUND
+  rounds = session.get(f"{BASE}/astar-island/rounds").json()
+  active = next((r for r in rounds if r["status"] == "active"), None)
+  round_id = active["id"]
+
+STEP 2: GET ROUND DETAILS
+  detail = session.get(f"{BASE}/astar-island/rounds/{round_id}").json()
+  width = detail["map_width"]       # 40
+  height = detail["map_height"]     # 40
+  seeds = detail["seeds_count"]     # 5
+
+  Each initial_states[i] has:
+    grid         - height x width terrain codes
+    settlements  - [{x, y, has_port, alive}, ...]
+
+STEP 3: QUERY THE SIMULATOR
+  50 queries per round, shared across all seeds. Each reveals 5-15 cell viewport.
+
+  result = session.post(f"{BASE}/astar-island/simulate", json={
+      "round_id": round_id,
+      "seed_index": 0,
+      "viewport_x": 10, "viewport_y": 5,
+      "viewport_w": 15, "viewport_h": 15,
+  }).json()
+
+  result["grid"]         - 15x15 terrain after simulation
+  result["settlements"]  - settlements in viewport with full stats
+  result["viewport"]     - {x, y, w, h}
+
+STEP 4: BUILD AND SUBMIT PREDICTIONS
+  For each seed, submit height x width x 6 probability tensor.
+  6 classes: [Empty, Settlement, Port, Ruin, Forest, Mountain]
+  Each cell's 6 values must sum to 1.0.
+
+  prediction = np.full((height, width, 6), 1/6)  # uniform baseline
+  # Replace with your model's predictions...
+
+  resp = session.post(f"{BASE}/astar-island/submit", json={
+      "round_id": round_id,
+      "seed_index": seed_idx,
+      "prediction": prediction.tolist(),
+  })
+
+  A uniform prediction scores ~1-5.
+
+WARNING: Never assign probability 0.0 to any class. If the ground truth has any
+non-zero probability for a class you marked as zero, KL divergence becomes infinite
+and your score for that cell is destroyed. Always enforce a minimum floor (e.g. 0.01)
+and renormalize.
