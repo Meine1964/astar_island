@@ -1,0 +1,102 @@
+ASTAR ISLAND — LESSONS LEARNED
+================================
+
+ENVIRONMENT SETUP
+- Windows + Python `requests` needs `truststore` package
+  Call truststore.inject_into_ssl() before making any requests
+- Using `uv` package manager; deps: requests, numpy, truststore
+
+API QUIRKS
+- Auth: JWT token set as cookie "access_token" on a requests.Session
+- Budget endpoint keys may vary — use .get() with fallbacks, don't assume key names
+- Rate limits: 5 req/s for /simulate, 2 req/s for /submit
+
+ROUND LIFECYCLE
+- Rounds go: pending → active → scoring → completed
+- Scores are None while round is still active
+- Only populated after the round transitions to "completed"
+- Don't panic if score shows None right after submitting
+
+PREDICTION FORMAT
+- 40x40x6 probability tensor per seed (must sum to 1.0 per cell)
+- 8 terrain codes → 6 classes: {0,10,11}→0, 1→1, 2→2, 3→3, 4→4, 5→5
+- Mountains (code 5) and Ocean (code 10) are static — hardcode to 1.0 probability
+- Scoring uses ENTROPY-WEIGHTED KL divergence:
+  * Static cells (ocean, mountain, distant plains) have ~zero entropy → zero score weight
+  * Dynamic cells (settlements, ports, ruins, nearby land) have high entropy → all the score
+  * This means: nearly your ENTIRE score comes from settlement-area cells
+- NEVER assign 0 probability (use min floor ~0.005)
+
+STRATEGY — CURRENT APPROACH (V4 — Adaptive + Sim Priors)
+1. Simulator prior (biggest single improvement):
+   - Run our local simulator on the REAL initial state (grid + settlements)
+   - 100 sims per seed → per-cell (H,W,6) probability distribution
+   - Much better than hand-tuned domain_prior() because it uses actual map layout
+   - Free: costs zero queries, just local computation (~15s for 5 seeds)
+   - Impact: Round 7 resubmission with sim priors alone jumped us from rank 180 → 85
+
+2. Adaptive query selection (replaced static viewport planning):
+   - Before each query: compute entropy of current prediction for ALL seeds
+   - Pick the (seed, viewport) with highest entropy × observation_bonus
+   - observation_bonus = max(1 - obs_count/5, 0) — prefer unexplored cells
+   - Viewport positions scanned on grid with step=3
+   - Result: queries naturally flow to where they reduce error most
+   - Coverage: 68-82% of cells observed (vs 56-71% with static)
+
+3. Cross-seed feature model (unchanged from V3):
+   - 288 feature buckets: (init_class, dist_bucket, coastal, density)
+   - Observations from ANY seed feed the same model
+   - Laplace smoothing when ≥3 obs, else falls back to prior
+
+4. Historical calibration (improved):
+   - Pre-trains model from ALL completed rounds' ground truth
+   - Round 8: 35 seed-rounds from 7 completed rounds → 100 buckets
+   - Historical data weights at 0.5x (parameters change between rounds)
+
+5. Iterative submissions (key insight: submissions are FREE):
+   - Submit baseline with sim priors only (0 queries) as safety net
+   - Resubmit every 10 queries with updated predictions
+   - Final submission after all 50 queries
+   - Total: 6 submissions per round (baseline + 4 periodic + final)
+
+6. Three-tier prediction blending:
+   - n≥5 observations: 83%+ empirical, rest cross-seed model
+   - n=1-4 observations: blended empirical + model (weight = n/(n+5))
+   - n=0 observations: pure cross-seed model with sim prior as base
+   - MIN_PROB = 0.005 floor
+
+CRITICAL OPERATIONAL LESSONS
+- NEVER run against live API without explicit user permission
+- Run the script ONCE per round with full budget
+- Rate limit on /submit is 2 req/s — sleep ≥0.5s between submissions
+- Rate limit on /simulate is 5 req/s — sleep ≥0.22s between queries
+- Windows console can't print Unicode chars — use ASCII only in print()
+- PowerShell can't run inline Python with f-strings — use .py files instead
+- Calibration is too slow in pure Python (35 seeds × 30 sims × 48 combos)
+  — must subsample (1 seed/round) and reduce sims
+
+CODE ARCHITECTURE
+- main.py: Local testing against simulator (no API calls)
+- server_run.py: Live API with safety prompt, sim priors, adaptive queries
+- strategy.py: All shared logic (model, priors, viewports, prediction building)
+- resubmit.py: Free resubmission with sim priors (zero queries burned)
+- calibrate.py: Parameter tuning from completed rounds (needs speed optimization)
+- check_status.py: Read-only API status checker
+- astar_island_simulator/: Local sim engine (env.py, local_api.py)
+
+ROUND HISTORY
+- Round 6: rank 180 (v1 static approach, no sim priors)
+- Round 7: rank 85 (resubmitted with sim priors, 50 queries from v1 run)
+- Round 8: submitted with full V4 pipeline (adaptive + sim priors + historical cal)
+  - 37-60 settlements/seed, 988-1049 dynamic cells, 1089-1314 cells observed
+
+STRATEGY — FUTURE IMPROVEMENT IDEAS
+- Calibrate simulator params from real data (calibrate.py exists but too slow)
+  Need to either: speed up Python sim, subsample aggressively, or port to numpy
+- Use settlement stats from /simulate responses (population, food, wealth)
+  to predict which settlements thrive vs collapse
+- Spatial propagation: infer activity between observed settlements
+- Save observation data to disk so resubmit.py can use previous query data
+- Per-settlement survival model using adjacent_forests, has_port, neighbor_distance
+- Ensemble multiple sim parameter sets for more robust priors
+- Analyze score breakdown per seed after rounds complete to find weak spots
