@@ -11,7 +11,7 @@ import numpy as np
 
 CODE_TO_CLASS = {0: 0, 10: 0, 11: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5}
 NUM_CLASSES = 6
-MIN_PROB = 0.005
+MIN_PROB = 0.002
 DYNAMIC_RADIUS = 7
 
 # ── Empirical bias correction from ground truth ───────────────────────
@@ -339,13 +339,13 @@ def current_prediction_for_seed(seed_info_entry, obs_si, obs_n_si, model, H, W,
                     prior = domain_prior(ic, db, co)
                 model_pred = model.predict(fkey, prior)
                 n = obs_n_si[y, x]
-                if n >= 5:
+                if n >= 8:
                     emp = obs_si[y, x] / n
                     w = n / (n + 2)
                     p = w * emp + (1 - w) * model_pred
                 elif n > 0:
                     emp = obs_si[y, x] / n
-                    w = n / (n + 5)
+                    w = n / (n + 8)
                     p = w * emp + (1 - w) * model_pred
                 else:
                     p = model_pred
@@ -595,13 +595,13 @@ def build_prediction(seed_info_entry, obs_si, obs_n_si, model, H, W,
                 model_pred = model.predict(fkey, prior)
                 n = obs_n_si[y, x]
 
-                if n >= 5:
+                if n >= 8:
                     emp = obs_si[y, x] / n
                     w = n / (n + 2)
                     p = w * emp + (1 - w) * model_pred
                 elif n > 0:
                     emp = obs_si[y, x] / n
-                    w = n / (n + 5)
+                    w = n / (n + 8)
                     p = w * emp + (1 - w) * model_pred
                 else:
                     p = model_pred
@@ -622,9 +622,16 @@ def build_prediction(seed_info_entry, obs_si, obs_n_si, model, H, W,
                     continue
                 gt_target = bias[db]
                 n = obs_n_si[y, x]
-                # Optimized via cross-validation on 8 rounds of GT
-                alpha = 0.40 / (1.0 + n * 0.5)
-                pred[y, x] = (1.0 - alpha) * pred[y, x] + alpha * gt_target
+                # Selective bias: only correct classes where pred already
+                # has meaningful mass (>= 0.01).  Don't inflate rare classes.
+                alpha = 0.20 / (1.0 + n * 0.5)
+                correction = gt_target - pred[y, x]
+                # Zero out corrections that would inflate near-zero classes
+                for c in range(NUM_CLASSES):
+                    if pred[y, x, c] < 0.01 and correction[c] > 0:
+                        correction[c] = 0.0
+                pred[y, x] += alpha * correction
+                pred[y, x] = np.maximum(pred[y, x], 0.0)
 
     # ── Spatial propagation: smooth predictions using observed neighbors ──
     # If a cell is unobserved but has observed neighbors, blend toward neighbors
