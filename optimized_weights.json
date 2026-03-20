@@ -1,0 +1,6 @@
+{
+  "alpha": 0.4,
+  "decay": 0.5,
+  "spatial_blend_unobs": 0.15,
+  "spatial_blend_obs": 0.08
+}

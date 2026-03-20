@@ -62,16 +62,16 @@ class HiddenParams:
     growth_food_threshold: float = 10.0 # food needed to grow population
     port_wealth_threshold: float = 6.0  # wealth needed to become a port
     longship_tech_threshold: float = 5.0
-    expansion_pop_threshold: int = 25   # population to found new settlement
+    expansion_pop_threshold: int = 35   # population to found new settlement
     expansion_radius: int = 3
-    expansion_prob: float = 0.05        # prob of founding new settlement
-    port_creation_prob: float = 0.15    # prob of building a port
+    expansion_prob: float = 0.12        # prob of founding new settlement
+    port_creation_prob: float = 0.20    # prob of building a port
 
     # -- Conflict --
     raid_range: int = 4
     longship_raid_bonus: int = 6        # extra range with longship
-    desperate_food_threshold: float = 3.0
-    raid_strength_factor: float = 0.3
+    desperate_food_threshold: float = 5.0
+    raid_strength_factor: float = 0.15
     raid_loot_fraction: float = 0.2
     conquest_threshold: float = 0.8     # damage ratio to trigger allegiance flip
 
@@ -82,16 +82,16 @@ class HiddenParams:
     tech_diffusion_rate: float = 0.1
 
     # -- Winter --
-    winter_base_severity: float = 4.0
-    winter_severity_variance: float = 2.0
-    collapse_food_threshold: float = -0.5  # below this -> ruin
+    winter_base_severity: float = 3.0
+    winter_severity_variance: float = 1.0
+    collapse_food_threshold: float = -1.0  # below this -> ruin
 
     # -- Environment --
     reclaim_radius: int = 3
     reclaim_pop_threshold: int = 15
-    ruin_reclaim_prob: float = 0.10       # prob of reclaiming a ruin
-    forest_regrowth_prob: float = 0.25    # prob ruin becomes forest per year
-    plains_regrowth_prob: float = 0.20    # prob ruin becomes plains per year
+    ruin_reclaim_prob: float = 0.03       # prob of reclaiming a ruin
+    forest_regrowth_prob: float = 0.15    # prob ruin becomes forest per year
+    plains_regrowth_prob: float = 0.25    # prob ruin becomes plains per year
 
     # -- Simulation --
     n_years: int = 50

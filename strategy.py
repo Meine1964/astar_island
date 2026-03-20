@@ -622,8 +622,8 @@ def build_prediction(seed_info_entry, obs_si, obs_n_si, model, H, W,
                     continue
                 gt_target = bias[db]
                 n = obs_n_si[y, x]
-                # Tuned on Round 7 ground truth: base_alpha=0.15, decay=0.5
-                alpha = 0.15 / (1.0 + n * 0.5)
+                # Optimized via cross-validation on 8 rounds of GT
+                alpha = 0.40 / (1.0 + n * 0.5)
                 pred[y, x] = (1.0 - alpha) * pred[y, x] + alpha * gt_target
 
     # ── Spatial propagation: smooth predictions using observed neighbors ──
