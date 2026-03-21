@@ -591,17 +591,14 @@ def build_prediction(seed_info_entry, obs_si, obs_n_si, model, H, W,
                 p = np.full(NUM_CLASSES, MIN_PROB)
                 p[0] = 1.0
             else:
-                # Hedge: blend sim prior with domain prior to handle
-                # round-to-round variation in hidden params.
-                # Sim captures spatial structure, domain prior captures
-                # the correct average class distribution from GT history.
                 dp = domain_prior(ic, db, co)
                 if sim_prior is not None:
-                    prior = 0.5 * sim_prior[y, x] + 0.5 * dp
+                    prior = 0.3 * sim_prior[y, x] + 0.7 * dp
                     prior = np.maximum(prior, MIN_PROB)
                     prior /= prior.sum()
                 else:
                     prior = dp
+
                 model_pred = model.predict(fkey, prior)
                 n = obs_n_si[y, x]
 
