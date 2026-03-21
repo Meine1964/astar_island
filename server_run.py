@@ -30,11 +30,7 @@ TOKEN = (
 
 # ── Safety prompt ──────────────────────────────────────────────────────
 print("=== LIVE API SUBMISSION ===")
-print("This will use real queries and submit real predictions.")
-confirm = input("Type 'yes' to continue: ").strip().lower()
-if confirm != "yes":
-    print("Aborted.")
-    exit()
+print("This will use real queries and submit real predictions.\n")
 
 # ── Session setup ──────────────────────────────────────────────────────
 session = requests.Session()
