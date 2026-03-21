@@ -176,20 +176,41 @@ def estimate_settlement_regime(obs, obs_n, seed_info, seeds, H, W):
     settlements) by comparing observed rate against the expected rate for the
     same cells from the domain prior.
 
+    Uses two signals for dead-round detection:
+    1. Settlement survival at initial settlement positions (stochastic, noisy)
+    2. Settlement rate at distance >= 3 from initial settlements (highly diagnostic:
+       in dead rounds, far cells almost never become settlements)
+
     Returns a dict with:
       - 'observed_rate': fraction of observed dynamic cells that are settlements
       - 'expected_rate': what the domain prior predicts for those same cells
       - 'observed_cells': total dynamic cells observed
       - 'scale': ratio of observed/expected — multiply settlement probs by this
+      - 'dead_round': True if settlements appear to have collapsed
     """
     total_obs_settle = 0.0
     total_prior_settle = 0.0
     total_dynamic_obs = 0.0
     total_dynamic = 0
 
+    # Far-cell signal: settlements at distance >= 3 from initial positions
+    far_obs_settle = 0.0
+    far_obs_total = 0.0
+    far_prior_settle = 0.0
+
+    # Initial settlement survival signal
+    init_sett_observed = 0
+    init_sett_still_alive = 0
+
     for si in range(seeds):
         grid = seed_info[si]["grid"]
         feats = seed_info[si]["features"]
+        settlements = seed_info[si]["settlements"]
+
+        init_sett_pos = set()
+        for s in settlements:
+            init_sett_pos.add((s["x"], s["y"]))
+
         for y in range(H):
             for x in range(W):
                 n = obs_n[si][y, x]
@@ -200,36 +221,114 @@ def estimate_settlement_regime(obs, obs_n, seed_info, seeds, H, W):
                     continue
                 total_dynamic += 1
                 total_dynamic_obs += n
-                # Observed settlement fraction for this cell
                 total_obs_settle += obs[si][y, x, 1]
-                # Expected settlement fraction from domain prior
+
                 ic, db, co, dn = feats[y, x]
                 dp = domain_prior(ic, db, co)
-                total_prior_settle += dp[1] * n  # weight by observation count
+                total_prior_settle += dp[1] * n
+
+                # Check initial settlement positions
+                if (x, y) in init_sett_pos:
+                    init_sett_observed += 1
+                    sett_frac = obs[si][y, x, 1] / n
+                    if sett_frac > 0.3:
+                        init_sett_still_alive += 1
+
+                # Far-cell observations (informational, for potential future use)
+                if db >= 3:
+                    far_obs_settle += obs[si][y, x, 1]
+                    far_obs_total += n
+                    far_prior_settle += dp[1] * n
 
     if total_dynamic_obs < 100:
         return {"observed_rate": None, "expected_rate": None,
-                "observed_cells": total_dynamic, "scale": 1.0}
+                "observed_cells": total_dynamic, "scale": 1.0,
+                "dead_round": False}
 
     observed_rate = total_obs_settle / total_dynamic_obs
     expected_rate = total_prior_settle / total_dynamic_obs
 
-    # Scale = ratio of observed to expected (corrects for selection bias)
-    if expected_rate > 0.001:
-        scale = observed_rate / expected_rate
-    else:
-        scale = 1.0
+    # Dead-round detection: initial settlement survival
+    # Only catches extreme die-offs (like R10 where survival was 8%)
+    # Stochastic variance means mild dead rounds still show ~40-50% survival
+    dead_round = False
+    if init_sett_observed >= 3:
+        survival_rate = init_sett_still_alive / init_sett_observed
+        if survival_rate < 0.25:
+            dead_round = True
 
-    # Clamp scale to reasonable range
-    # Historical settlement rates: 0% to 18%, domain prior avg ~10%
-    scale = max(0.05, min(scale, 3.0))
+    if dead_round:
+        # Force scale very low — settlements have collapsed
+        scale = max(0.05, min(observed_rate * 2.0, 0.3))
+    else:
+        if expected_rate > 0.001:
+            scale = observed_rate / expected_rate
+        else:
+            scale = 1.0
+        scale = max(0.05, min(scale, 3.0))
 
     return {
         "observed_rate": observed_rate,
         "expected_rate": expected_rate,
         "observed_cells": total_dynamic,
         "scale": scale,
+        "dead_round": dead_round,
     }
+
+
+def self_consistency_tune(seed_info, obs, obs_n, model, seeds, H, W, regime):
+    """Refine regime scale by minimising KL(obs || pred) on moderately-observed cells.
+
+    Searches a grid of scales around the initial estimate and picks the one
+    where predictions best match observations (cells with 2-5 observations,
+    where the model still dominates the blended prediction).
+    """
+    base_scale = regime["scale"]
+    lo = max(0.03, base_scale * 0.3)
+    hi = min(3.0, base_scale * 3.0)
+    candidates = sorted(set(
+        [round(s, 3) for s in np.linspace(lo, hi, 30)] +
+        [0.03, 0.05, 0.1, 0.2, 0.3, base_scale]
+    ))
+
+    best_kl = float("inf")
+    best_scale = base_scale
+
+    for s in candidates:
+        test_r = dict(regime)
+        test_r["scale"] = s
+        test_r["dead_round"] = s < 0.15
+
+        kl_sum = 0.0
+        count = 0
+        for si in range(seeds):
+            pred = build_prediction(
+                seed_info[si], obs[si], obs_n[si], model, H, W, regime=test_r)
+            for y in range(H):
+                for x in range(W):
+                    n = obs_n[si][y, x]
+                    if n < 2 or n > 5:
+                        continue
+                    cell = seed_info[si]["grid"][y][x]
+                    if cell == 5 or cell == 10:
+                        continue
+                    emp = obs[si][y, x] / n
+                    emp = np.maximum(emp, 1e-6)
+                    emp /= emp.sum()
+                    p = np.maximum(pred[y, x], 1e-6)
+                    p /= p.sum()
+                    kl_sum += np.sum(emp * np.log(emp / p))
+                    count += 1
+        if count > 0:
+            avg_kl = kl_sum / count
+            if avg_kl < best_kl:
+                best_kl = avg_kl
+                best_scale = s
+
+    tuned = dict(regime)
+    tuned["scale"] = best_scale
+    tuned["dead_round"] = best_scale < 0.15
+    return tuned
 
 
 # ── Cross-seed outcome model ──────────────────────────────────────────
@@ -399,18 +498,16 @@ def current_prediction_for_seed(seed_info_entry, obs_si, obs_n_si, model, H, W,
                 ic, db, co, dn = feats[y, x]
                 fkey = tuple(feats[y, x])
                 if sim_prior is not None:
-                    prior = sim_prior[y, x].copy()
+                    prior = 0.3 * sim_prior[y, x] + 0.7 * domain_prior(ic, db, co)
+                    prior = np.maximum(prior, MIN_PROB)
+                    prior /= prior.sum()
                 else:
                     prior = domain_prior(ic, db, co)
                 model_pred = model.predict(fkey, prior)
                 n = obs_n_si[y, x]
-                if n >= 8:
+                if n > 0:
                     emp = obs_si[y, x] / n
-                    w = n / (n + 2)
-                    p = w * emp + (1 - w) * model_pred
-                elif n > 0:
-                    emp = obs_si[y, x] / n
-                    w = n / (n + 8)
+                    w = n / (n + 14)
                     p = w * emp + (1 - w) * model_pred
                 else:
                     p = model_pred
@@ -441,18 +538,63 @@ def current_prediction_for_seed(seed_info_entry, obs_si, obs_n_si, model, H, W,
     return pred
 
 
+def _pick_exploration_viewports(seed_info, seeds, H, W):
+    """Pick 2 viewports in areas far from all initial settlements, for regime detection.
+
+    Returns list of (seed_index, viewport_dict) targeting areas with the most
+    dynamic cells at distance >= 4 from any settlement.
+    """
+    candidates = []
+    for si in range(seeds):
+        feats = seed_info[si]["features"]
+        grid = seed_info[si]["grid"]
+        # Score each viewport by number of far dynamic cells
+        for vy in range(0, H - 4, 5):
+            for vx in range(0, W - 4, 5):
+                vw = min(15, W - vx)
+                vh = min(15, H - vy)
+                far_count = 0
+                for dy in range(vh):
+                    for dx in range(vw):
+                        y, x = vy + dy, vx + dx
+                        cell = grid[y][x]
+                        if cell == 5 or cell == 10:
+                            continue
+                        db = feats[y, x, 1]
+                        if db >= 3:  # distance bucket >= 3 = far from settlements
+                            far_count += 1
+                if far_count > 20:
+                    candidates.append((far_count, si, {"x": vx, "y": vy, "w": vw, "h": vh}))
+    candidates.sort(key=lambda c: c[0], reverse=True)
+    # Return top 2, preferring different seeds
+    result = []
+    used_seeds = set()
+    for score, si, vp in candidates:
+        if len(result) >= 2:
+            break
+        if si not in used_seeds or len(result) < 2:
+            result.append((si, vp))
+            used_seeds.add(si)
+    return result
+
+
 def select_best_viewport(seed_info, obs, obs_n, model, sim_priors,
-                         seeds, H, W, step=3, regime=None):
+                         seeds, H, W, step=3, regime=None,
+                         focus_seeds=None):
     """Pick the (seed, viewport) that maximises entropy-weighted information gain.
 
     Scans all seeds and viewport positions (on a grid with spacing `step`)
     and returns the one covering the most uncertain cells.
+
+    If focus_seeds is provided (set of seed indices), only consider those seeds.
     """
     best_score = -1.0
     best_seed = 0
     best_vp = {"x": 0, "y": 0, "w": 15, "h": 15}
 
-    for si in range(seeds):
+    candidate_seeds = focus_seeds if focus_seeds is not None else range(seeds)
+
+    for si in candidate_seeds:
         pred = current_prediction_for_seed(
             seed_info[si], obs[si], obs_n[si], model, H, W,
             sim_prior=sim_priors.get(si), regime=regime
@@ -485,6 +627,13 @@ def execute_adaptive_queries(session, base_url, round_id, seed_info,
                               settlement_stats=None):
     """Execute queries adaptively, choosing the best viewport after each query.
 
+    Strategy: Focus queries on 2 "focus seeds" for deep coverage (~4-5 obs/cell)
+    while using the other 3 seeds for cross-seed model learning.
+    Phase 1 (first 10 queries): 1 query each across all 5 seeds for regime detection,
+        then focus on the 2 most informative seeds.
+    Phase 2 (queries 11-40): Deep coverage on focus seeds.
+    Phase 3 (queries 41-50): Spread remaining queries across all seeds for final tuning.
+
     Args:
         submit_fn: Optional callback(query_count) called periodically
                    to submit intermediate predictions.
@@ -497,16 +646,41 @@ def execute_adaptive_queries(session, base_url, round_id, seed_info,
     total_q = 0
     low_info_streak = 0  # for early stopping
 
+    # Pre-compute exploration viewports: areas far from settlements for regime detection
+    explore_vps = _pick_exploration_viewports(seed_info, seeds, H, W)
+
+    # Pick 2 focus seeds: the ones with the most settlements (most dynamic)
+    sett_counts = [(len(seed_info[si]["settlements"]), si) for si in range(seeds)]
+    sett_counts.sort(reverse=True)
+    focus_seeds = set([sett_counts[0][1], sett_counts[1][1]])
+    print(f"  Focus seeds: {sorted(focus_seeds)} "
+          f"(settlements: {sett_counts[0][0]}, {sett_counts[1][0]})")
+
     for q in range(budget):
         # Estimate regime from observations so far (after enough data)
         regime = None
-        if total_q >= 10:
+        if total_q >= 6:
             regime = estimate_settlement_regime(obs, obs_n, seed_info, seeds, H, W)
 
-        si, vp, info_score = select_best_viewport(
-            seed_info, obs, obs_n, model, sim_priors, seeds, H, W,
-            regime=regime
-        )
+        # Use exploration viewports for queries 4 and 6 (far from settlements)
+        if total_q in (3, 5) and explore_vps:
+            si, vp = explore_vps.pop(0)
+            info_score = 0.0
+            print(f"  [exploration query targeting far-from-settlement area]")
+        else:
+            # Phase-based query allocation (~45% each focus, ~3% each other):
+            # Phase 1 (Q1-6):   all seeds — regime detection, 1 query each
+            # Phase 2 (Q7-46):  focus seeds only — deep coverage, ~20 each
+            # Phase 3 (Q47-50): all seeds — final spread, ~1 per non-focus
+            if total_q < 6 or total_q >= 46:
+                active_seeds = None  # all seeds
+            else:
+                active_seeds = focus_seeds
+
+            si, vp, info_score = select_best_viewport(
+                seed_info, obs, obs_n, model, sim_priors, seeds, H, W,
+                regime=regime, focus_seeds=active_seeds
+            )
 
         feats = seed_info[si]["features"]
         result = session.post(f"{base_url}/simulate", json={
@@ -706,13 +880,9 @@ def build_prediction(seed_info_entry, obs_si, obs_n_si, model, H, W,
                 model_pred = model.predict(fkey, prior)
                 n = obs_n_si[y, x]
 
-                if n >= 8:
+                if n > 0:
                     emp = obs_si[y, x] / n
-                    w = n / (n + 2)
-                    p = w * emp + (1 - w) * model_pred
-                elif n > 0:
-                    emp = obs_si[y, x] / n
-                    w = n / (n + 8)
+                    w = n / (n + 14)
                     p = w * emp + (1 - w) * model_pred
                 else:
                     p = model_pred
@@ -735,7 +905,7 @@ def build_prediction(seed_info_entry, obs_si, obs_n_si, model, H, W,
                 n = obs_n_si[y, x]
                 # Selective bias: only correct classes where pred already
                 # has meaningful mass (>= 0.01).  Don't inflate rare classes.
-                alpha = 0.20 / (1.0 + n * 0.5)
+                alpha = 0.05 / (1.0 + n * 0.5)
                 correction = gt_target - pred[y, x]
                 # Zero out corrections that would inflate near-zero classes
                 for c in range(NUM_CLASSES):
@@ -769,7 +939,8 @@ def build_prediction(seed_info_entry, obs_si, obs_n_si, model, H, W,
                     p[4] -= delta * (p[4] / mass_0_4)
                     pred[y, x] = np.maximum(p, MIN_PROB)
 
-    # ── Suppress ruins: zero ruins observed in all 14 rounds of GT ──
+    # ── Cap ruins at a small floor (GT averages ~1-2% ruin probability) ──
+    RUIN_FLOOR = 0.010
     for y in range(H):
         for x in range(W):
             cell = grid[y][x]
@@ -777,42 +948,39 @@ def build_prediction(seed_info_entry, obs_si, obs_n_si, model, H, W,
                 continue
             if obs_n_si[y, x] >= 4:
                 continue  # trust observations
-            ruin_mass = pred[y, x, 3] - MIN_PROB
+            ruin_mass = pred[y, x, 3] - RUIN_FLOOR
             if ruin_mass > 0.001:
-                # Redistribute ruin mass to empty and forest
-                pred[y, x, 3] = MIN_PROB
+                # Redistribute excess ruin mass to empty and forest
+                pred[y, x, 3] = RUIN_FLOOR
                 pred[y, x, 0] += ruin_mass * 0.7
                 pred[y, x, 4] += ruin_mass * 0.3
 
-    # ── Spatial propagation: smooth predictions using observed neighbors ──
-    # If a cell is unobserved but has observed neighbors, blend toward neighbors
-    smoothed = pred.copy()
+    # ── Port redistribution: ports only exist on coastal cells ────────
+    # Coastal cells: split settlement+port mass 45%/55% (settlement/port)
+    # Non-coastal cells: zero out port probability entirely
+    PORT_SHARE = 0.55
     for y in range(H):
         for x in range(W):
             cell = grid[y][x]
             if cell == 5 or cell == 10:
                 continue
-            if obs_n_si[y, x] >= 3:
-                continue  # well-observed cells don't need smoothing
-            # Gather observed neighbor predictions
-            neighbor_sum = np.zeros(NUM_CLASSES)
-            neighbor_weight = 0.0
-            for dy in range(-2, 3):
-                for dx in range(-2, 3):
-                    if dy == 0 and dx == 0:
-                        continue
-                    ny, nx = y + dy, x + dx
-                    if 0 <= ny < H and 0 <= nx < W and obs_n_si[ny, nx] >= 2:
-                        d = abs(dy) + abs(dx)
-                        w = obs_n_si[ny, nx] / (d * d)
-                        neighbor_sum += pred[ny, nx] * w
-                        neighbor_weight += w
-            if neighbor_weight > 1.0:
-                neighbor_pred = neighbor_sum / neighbor_weight
-                # Light blend: 10-20% toward neighbors for unobserved cells
-                blend = 0.15 if obs_n_si[y, x] == 0 else 0.08
-                smoothed[y, x] = (1.0 - blend) * pred[y, x] + blend * neighbor_pred
-    pred = smoothed
+            is_coastal = feats[y, x, 2]
+            if is_coastal:
+                total_active = pred[y, x, 1] + pred[y, x, 2]
+                if total_active > 0.01:
+                    pred[y, x, 2] = max(MIN_PROB, total_active * PORT_SHARE)
+                    pred[y, x, 1] = max(MIN_PROB, total_active * (1 - PORT_SHARE))
+            else:
+                port_mass = pred[y, x, 2] - MIN_PROB
+                if port_mass > 0.001:
+                    pred[y, x, 2] = MIN_PROB
+                    pred[y, x, 0] += port_mass * 0.7
+                    pred[y, x, 4] += port_mass * 0.3
+
+    # ── Spatial propagation: DISABLED — backtest shows it hurts by ~-4/round ──
+    # smoothed = pred.copy()
+    # ...
+    # pred = smoothed
 
     # ── Settlement stats adjustment ──────────────────────────────────
     # If we observed settlement health, adjust nearby cells' settlement prob

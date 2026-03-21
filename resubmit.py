@@ -14,7 +14,7 @@ truststore.inject_into_ssl()
 from strategy import (
     OutcomeModel, analyze_seeds, build_prediction,
     calibrate_from_history, compute_simulator_prior, NUM_CLASSES,
-    estimate_settlement_regime,
+    estimate_settlement_regime, self_consistency_tune,
 )
 import data_store
 
@@ -78,8 +78,11 @@ if not loaded:
 
 print("\n-- Submitting predictions --")
 regime = estimate_settlement_regime(obs, obs_n, seed_info, seeds, H, W)
+base_scale = regime['scale']
+if loaded:
+    regime = self_consistency_tune(seed_info, obs, obs_n, model, seeds, H, W, regime)
 rate_str = f"{regime['observed_rate']:.1%}" if regime['observed_rate'] is not None else "N/A"
-print(f"Regime: rate={rate_str}, scale={regime['scale']:.2f}")
+print(f"Regime: rate={rate_str}, scale={base_scale:.2f}->{regime['scale']:.2f}")
 for si in range(seeds):
     pred = build_prediction(seed_info[si], obs[si], obs_n[si], model, H, W,
                             sim_prior=sim_priors[si], regime=regime)

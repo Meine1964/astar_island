@@ -13,6 +13,7 @@ from strategy import (
     OutcomeModel, analyze_seeds, execute_adaptive_queries,
     build_prediction, compute_simulator_prior,
     print_summary, NUM_CLASSES, estimate_settlement_regime,
+    self_consistency_tune,
 )
 
 
@@ -111,8 +112,10 @@ print(f"Cross-seed model: {len(model.counts)} buckets, "
 
 # ── Step 7: Build predictions and submit ──────────────────────────────
 regime = estimate_settlement_regime(obs, obs_n, seed_info, seeds, H, W)
+base_scale = regime['scale']
+regime = self_consistency_tune(seed_info, obs, obs_n, model, seeds, H, W, regime)
 rate_str = f"{regime['observed_rate']:.1%}" if regime['observed_rate'] is not None else "N/A"
-print(f"\nRegime: rate={rate_str}, scale={regime['scale']:.2f}")
+print(f"\nRegime: rate={rate_str}, scale={base_scale:.2f}->{regime['scale']:.2f}")
 for si in range(seeds):
     pred = build_prediction(seed_info[si], obs[si], obs_n[si], model, H, W,
                             sim_prior=sim_priors[si], regime=regime)

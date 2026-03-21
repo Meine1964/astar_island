@@ -15,7 +15,7 @@ from strategy import (
     OutcomeModel, CODE_TO_CLASS, analyze_seeds,
     build_prediction, calibrate_from_history, compute_simulator_prior,
     execute_adaptive_queries, print_summary, NUM_CLASSES,
-    estimate_settlement_regime,
+    estimate_settlement_regime, self_consistency_tune,
 )
 import data_store
 
@@ -85,8 +85,13 @@ for si in range(seeds):
     print(f"  Seed {si}: {n_dynamic} dynamic cells in simulator prior")
 
 # ── Step 6: Submit simulator-prior baseline (free safety net) ─────────
-obs = {i: np.zeros((H, W, NUM_CLASSES)) for i in range(seeds)}
-obs_n = {i: np.zeros((H, W)) for i in range(seeds)}
+# Try to load saved observations from a previous (interrupted) run
+obs, obs_n, had_saved = data_store.load_observations(round_num, seeds, H, W, NUM_CLASSES)
+if had_saved:
+    total_saved = sum(int((obs_n[si] > 0).sum()) for si in range(seeds))
+    print(f"Resumed {total_saved} previously observed cells from saved data")
+else:
+    print("No saved observations found — starting fresh")
 settlement_stats = {}  # seed_index -> {(x,y) -> stats}
 
 print("\n-- Submission #0: simulator-prior baseline --")
@@ -109,8 +114,9 @@ def submit_all(query_count):
     submit_count += 1
     regime = estimate_settlement_regime(obs, obs_n, seed_info, seeds, H, W)
     rate_str = f"{regime['observed_rate']:.1%}" if regime['observed_rate'] is not None else "N/A"
+    dead_str = " DEAD" if regime.get('dead_round') else ""
     print(f"\n-- Submission #{submit_count}: after {query_count} queries "
-          f"(regime: rate={rate_str}, scale={regime['scale']:.2f}) --")
+          f"(regime: rate={rate_str}, scale={regime['scale']:.2f}{dead_str}) --")
     for sj in range(seeds):
         pred = build_prediction(seed_info[sj], obs[sj], obs_n[sj], model, H, W,
                                 sim_prior=sim_priors[sj],
@@ -138,12 +144,15 @@ total_q = execute_adaptive_queries(
 print(f"\nQueries executed: {total_q}")
 data_store.save_observations(round_num, obs, obs_n, seeds)
 
-# ── Step 8: Final submission ──────────────────────────────────────────
+# ── Step 8: Final submission with self-consistency-tuned scale ────────
 submit_count += 1
 regime = estimate_settlement_regime(obs, obs_n, seed_info, seeds, H, W)
+base_scale = regime['scale']
+regime = self_consistency_tune(seed_info, obs, obs_n, model, seeds, H, W, regime)
 rate_str = f"{regime['observed_rate']:.1%}" if regime['observed_rate'] is not None else "N/A"
+dead_str = " DEAD" if regime.get('dead_round') else ""
 print(f"\n-- Final submission #{submit_count}: after {total_q} queries "
-      f"(regime: rate={rate_str}, scale={regime['scale']:.2f}) --")
+      f"(regime: rate={rate_str}, scale={base_scale:.2f}->{regime['scale']:.2f}{dead_str}) --")
 for si in range(seeds):
     pred = build_prediction(seed_info[si], obs[si], obs_n[si], model, H, W,
                             sim_prior=sim_priors[si],
