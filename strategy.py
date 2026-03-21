@@ -519,12 +519,16 @@ def compute_simulator_prior(init_grid, init_settlements, W, H, n_sims=100,
     # Build parameter ensemble: baseline + variations
     param_sets = [params]
     if ensemble:
+        # Wide ensemble to cover the huge round-to-round variation in hidden params.
+        # GT settlement rates range from 0-3% (harsh winters) to 25-28% (mild).
+        # We need factors that span this full range.
         vary_keys = ["winter_base_severity", "food_per_forest", "food_per_plains",
                      "collapse_food_threshold", "expansion_prob"]
         base_dict = asdict(params)
         for key in vary_keys:
             base_val = base_dict[key]
-            for factor in [0.7, 1.3]:
+            # Wide range: 0.3x to 2.0x covers harsh-to-mild scenarios
+            for factor in [0.3, 0.6, 1.5, 2.0]:
                 varied = base_dict.copy()
                 varied[key] = base_val * factor
                 field_names = {f.name for f in fields(HiddenParams)}
@@ -587,11 +591,17 @@ def build_prediction(seed_info_entry, obs_si, obs_n_si, model, H, W,
                 p = np.full(NUM_CLASSES, MIN_PROB)
                 p[0] = 1.0
             else:
-                # Use simulator prior if available, else hand-tuned
+                # Hedge: blend sim prior with domain prior to handle
+                # round-to-round variation in hidden params.
+                # Sim captures spatial structure, domain prior captures
+                # the correct average class distribution from GT history.
+                dp = domain_prior(ic, db, co)
                 if sim_prior is not None:
-                    prior = sim_prior[y, x].copy()
+                    prior = 0.5 * sim_prior[y, x] + 0.5 * dp
+                    prior = np.maximum(prior, MIN_PROB)
+                    prior /= prior.sum()
                 else:
-                    prior = domain_prior(ic, db, co)
+                    prior = dp
                 model_pred = model.predict(fkey, prior)
                 n = obs_n_si[y, x]
 
