@@ -15,6 +15,7 @@ from strategy import (
     OutcomeModel, CODE_TO_CLASS, analyze_seeds,
     build_prediction, calibrate_from_history, compute_simulator_prior,
     execute_adaptive_queries, print_summary, NUM_CLASSES,
+    estimate_settlement_regime,
 )
 import data_store
 
@@ -106,11 +107,15 @@ def submit_all(query_count):
     """Callback: resubmit all seeds with current data."""
     global submit_count
     submit_count += 1
-    print(f"\n-- Submission #{submit_count}: after {query_count} queries --")
+    regime = estimate_settlement_regime(obs, obs_n, seed_info, seeds, H, W)
+    rate_str = f"{regime['observed_rate']:.1%}" if regime['observed_rate'] is not None else "N/A"
+    print(f"\n-- Submission #{submit_count}: after {query_count} queries "
+          f"(regime: rate={rate_str}, scale={regime['scale']:.2f}) --")
     for sj in range(seeds):
         pred = build_prediction(seed_info[sj], obs[sj], obs_n[sj], model, H, W,
                                 sim_prior=sim_priors[sj],
-                                settlement_stats=settlement_stats.get(sj))
+                                settlement_stats=settlement_stats.get(sj),
+                                regime=regime)
         resp = session.post(f"{BASE}/submit", json={
             "round_id": round_id, "seed_index": sj,
             "prediction": pred.tolist(),
@@ -135,11 +140,15 @@ data_store.save_observations(round_num, obs, obs_n, seeds)
 
 # ── Step 8: Final submission ──────────────────────────────────────────
 submit_count += 1
-print(f"\n-- Final submission #{submit_count}: after {total_q} queries --")
+regime = estimate_settlement_regime(obs, obs_n, seed_info, seeds, H, W)
+rate_str = f"{regime['observed_rate']:.1%}" if regime['observed_rate'] is not None else "N/A"
+print(f"\n-- Final submission #{submit_count}: after {total_q} queries "
+      f"(regime: rate={rate_str}, scale={regime['scale']:.2f}) --")
 for si in range(seeds):
     pred = build_prediction(seed_info[si], obs[si], obs_n[si], model, H, W,
                             sim_prior=sim_priors[si],
-                            settlement_stats=settlement_stats.get(si))
+                            settlement_stats=settlement_stats.get(si),
+                            regime=regime)
     data_store.save_prediction(round_num, si, pred)
     resp = session.post(f"{BASE}/submit", json={
         "round_id": round_id, "seed_index": si,

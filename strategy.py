@@ -167,6 +167,71 @@ def domain_prior(init_class, dist_bucket, is_coastal):
     return p
 
 
+# ── Settlement regime estimation ───────────────────────────────────────
+
+def estimate_settlement_regime(obs, obs_n, seed_info, seeds, H, W):
+    """Pool observations across all seeds to estimate this round's settlement rate.
+
+    Corrects for spatial selection bias (queries target high-entropy areas near
+    settlements) by comparing observed rate against the expected rate for the
+    same cells from the domain prior.
+
+    Returns a dict with:
+      - 'observed_rate': fraction of observed dynamic cells that are settlements
+      - 'expected_rate': what the domain prior predicts for those same cells
+      - 'observed_cells': total dynamic cells observed
+      - 'scale': ratio of observed/expected — multiply settlement probs by this
+    """
+    total_obs_settle = 0.0
+    total_prior_settle = 0.0
+    total_dynamic_obs = 0.0
+    total_dynamic = 0
+
+    for si in range(seeds):
+        grid = seed_info[si]["grid"]
+        feats = seed_info[si]["features"]
+        for y in range(H):
+            for x in range(W):
+                n = obs_n[si][y, x]
+                if n == 0:
+                    continue
+                cell = grid[y][x]
+                if cell == 5 or cell == 10:
+                    continue
+                total_dynamic += 1
+                total_dynamic_obs += n
+                # Observed settlement fraction for this cell
+                total_obs_settle += obs[si][y, x, 1]
+                # Expected settlement fraction from domain prior
+                ic, db, co, dn = feats[y, x]
+                dp = domain_prior(ic, db, co)
+                total_prior_settle += dp[1] * n  # weight by observation count
+
+    if total_dynamic_obs < 100:
+        return {"observed_rate": None, "expected_rate": None,
+                "observed_cells": total_dynamic, "scale": 1.0}
+
+    observed_rate = total_obs_settle / total_dynamic_obs
+    expected_rate = total_prior_settle / total_dynamic_obs
+
+    # Scale = ratio of observed to expected (corrects for selection bias)
+    if expected_rate > 0.001:
+        scale = observed_rate / expected_rate
+    else:
+        scale = 1.0
+
+    # Clamp scale to reasonable range
+    # Historical settlement rates: 0% to 18%, domain prior avg ~10%
+    scale = max(0.05, min(scale, 3.0))
+
+    return {
+        "observed_rate": observed_rate,
+        "expected_rate": expected_rate,
+        "observed_cells": total_dynamic,
+        "scale": scale,
+    }
+
+
 # ── Cross-seed outcome model ──────────────────────────────────────────
 
 class OutcomeModel:
@@ -317,7 +382,7 @@ def compute_cell_entropy(pred):
 
 
 def current_prediction_for_seed(seed_info_entry, obs_si, obs_n_si, model, H, W,
-                                 sim_prior=None):
+                                 sim_prior=None, regime=None):
     """Fast per-cell prediction for uncertainty estimation."""
     grid = seed_info_entry["grid"]
     feats = seed_info_entry["features"]
@@ -351,13 +416,33 @@ def current_prediction_for_seed(seed_info_entry, obs_si, obs_n_si, model, H, W,
                     p = model_pred
             pred[y, x] = p
 
+    # Apply lightweight regime rescaling for better entropy estimation
+    if regime is not None and regime.get("observed_rate") is not None:
+        scale = regime["scale"]
+        for y in range(H):
+            for x in range(W):
+                cell = grid[y][x]
+                if cell == 5 or cell == 10:
+                    continue
+                if obs_n_si[y, x] >= 4:
+                    continue
+                p = pred[y, x]
+                old_s = p[1]
+                new_s = max(MIN_PROB, min(old_s * scale, 0.95))
+                delta = new_s - old_s
+                mass = p[0] + p[4]
+                if mass > 0.01 and abs(delta) > 0.001:
+                    p[1] = new_s
+                    p[0] -= delta * (p[0] / mass)
+                    p[4] -= delta * (p[4] / mass)
+
     pred = np.maximum(pred, MIN_PROB)
     pred /= pred.sum(axis=2, keepdims=True)
     return pred
 
 
 def select_best_viewport(seed_info, obs, obs_n, model, sim_priors,
-                         seeds, H, W, step=3):
+                         seeds, H, W, step=3, regime=None):
     """Pick the (seed, viewport) that maximises entropy-weighted information gain.
 
     Scans all seeds and viewport positions (on a grid with spacing `step`)
@@ -370,7 +455,7 @@ def select_best_viewport(seed_info, obs, obs_n, model, sim_priors,
     for si in range(seeds):
         pred = current_prediction_for_seed(
             seed_info[si], obs[si], obs_n[si], model, H, W,
-            sim_prior=sim_priors.get(si)
+            sim_prior=sim_priors.get(si), regime=regime
         )
         entropy = compute_cell_entropy(pred)
 
@@ -413,8 +498,14 @@ def execute_adaptive_queries(session, base_url, round_id, seed_info,
     low_info_streak = 0  # for early stopping
 
     for q in range(budget):
+        # Estimate regime from observations so far (after enough data)
+        regime = None
+        if total_q >= 10:
+            regime = estimate_settlement_regime(obs, obs_n, seed_info, seeds, H, W)
+
         si, vp, info_score = select_best_viewport(
-            seed_info, obs, obs_n, model, sim_priors, seeds, H, W
+            seed_info, obs, obs_n, model, sim_priors, seeds, H, W,
+            regime=regime
         )
 
         feats = seed_info[si]["features"]
@@ -576,13 +667,16 @@ def compute_simulator_prior(init_grid, init_settlements, W, H, n_sims=100,
 # ── Prediction building ───────────────────────────────────────────────
 
 def build_prediction(seed_info_entry, obs_si, obs_n_si, model, H, W,
-                     sim_prior=None, settlement_stats=None):
+                     sim_prior=None, settlement_stats=None,
+                     regime=None):
     """Build the HxWx6 prediction tensor for one seed.
 
     If sim_prior (HxWx6) is provided, it replaces the hand-tuned domain_prior
     as the fallback for unobserved cells.
     If settlement_stats is provided (dict of (x,y) -> stat_dict), use settlement
     health to weight nearby cell predictions.
+    If regime is provided (from estimate_settlement_regime), rescale settlement
+    probabilities to match the observed round regime.
     """
     grid = seed_info_entry["grid"]
     feats = seed_info_entry["features"]
@@ -648,7 +742,47 @@ def build_prediction(seed_info_entry, obs_si, obs_n_si, model, H, W,
                     if pred[y, x, c] < 0.01 and correction[c] > 0:
                         correction[c] = 0.0
                 pred[y, x] += alpha * correction
-                pred[y, x] = np.maximum(pred[y, x], 0.0)
+                pred[y, x] = np.maximum(pred[y, x], MIN_PROB)
+
+    # ── Regime rescaling: adjust settlement probs based on observed rate ──
+    if regime is not None and regime.get("observed_rate") is not None:
+        scale = regime["scale"]
+        obs_rate = regime["observed_rate"]
+        for y in range(H):
+            for x in range(W):
+                cell = grid[y][x]
+                if cell == 5 or cell == 10:
+                    continue
+                if obs_n_si[y, x] >= 4:
+                    continue  # well-observed cells are already accurate
+                p = pred[y, x].copy()
+                old_settle = p[1]
+                # Scale settlement probability toward observed rate
+                new_settle = old_settle * scale
+                new_settle = max(MIN_PROB, min(new_settle, 0.95))
+                delta = new_settle - old_settle
+                # Redistribute delta from empty(0) and forest(4)
+                mass_0_4 = p[0] + p[4]
+                if mass_0_4 > 0.01 and abs(delta) > 0.001:
+                    p[1] = new_settle
+                    p[0] -= delta * (p[0] / mass_0_4)
+                    p[4] -= delta * (p[4] / mass_0_4)
+                    pred[y, x] = np.maximum(p, MIN_PROB)
+
+    # ── Suppress ruins: zero ruins observed in all 14 rounds of GT ──
+    for y in range(H):
+        for x in range(W):
+            cell = grid[y][x]
+            if cell == 5 or cell == 10:
+                continue
+            if obs_n_si[y, x] >= 4:
+                continue  # trust observations
+            ruin_mass = pred[y, x, 3] - MIN_PROB
+            if ruin_mass > 0.001:
+                # Redistribute ruin mass to empty and forest
+                pred[y, x, 3] = MIN_PROB
+                pred[y, x, 0] += ruin_mass * 0.7
+                pred[y, x, 4] += ruin_mass * 0.3
 
     # ── Spatial propagation: smooth predictions using observed neighbors ──
     # If a cell is unobserved but has observed neighbors, blend toward neighbors

@@ -14,6 +14,7 @@ truststore.inject_into_ssl()
 from strategy import (
     OutcomeModel, analyze_seeds, build_prediction,
     calibrate_from_history, compute_simulator_prior, NUM_CLASSES,
+    estimate_settlement_regime,
 )
 import data_store
 
@@ -76,9 +77,12 @@ if not loaded:
     print("No saved observations found -- using sim priors only")
 
 print("\n-- Submitting predictions --")
+regime = estimate_settlement_regime(obs, obs_n, seed_info, seeds, H, W)
+rate_str = f"{regime['observed_rate']:.1%}" if regime['observed_rate'] is not None else "N/A"
+print(f"Regime: rate={rate_str}, scale={regime['scale']:.2f}")
 for si in range(seeds):
     pred = build_prediction(seed_info[si], obs[si], obs_n[si], model, H, W,
-                            sim_prior=sim_priors[si])
+                            sim_prior=sim_priors[si], regime=regime)
     resp = session.post(f"{BASE}/submit", json={
         "round_id": round_id, "seed_index": si,
         "prediction": pred.tolist(),

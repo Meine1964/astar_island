@@ -12,7 +12,7 @@ from astar_island_simulator import LocalAPI, HiddenParams
 from strategy import (
     OutcomeModel, analyze_seeds, execute_adaptive_queries,
     build_prediction, compute_simulator_prior,
-    print_summary, NUM_CLASSES,
+    print_summary, NUM_CLASSES, estimate_settlement_regime,
 )
 
 
@@ -83,15 +83,19 @@ def score_all(query_count):
     """Callback: score all seeds with current data to track progress."""
     global score_count
     score_count += 1
+    regime = estimate_settlement_regime(obs, obs_n, seed_info, seeds, H, W)
     total_score = 0
     for sj in range(seeds):
         pred = build_prediction(seed_info[sj], obs[sj], obs_n[sj], model, H, W,
                                 sim_prior=sim_priors[sj],
-                                settlement_stats=settlement_stats.get(sj))
+                                settlement_stats=settlement_stats.get(sj),
+                                regime=regime)
         result = api.score_prediction(seed_index=sj, prediction=pred, n_sims=10)
         total_score += result["score"]
+    rate_str = f"{regime['observed_rate']:.1%}" if regime['observed_rate'] is not None else "N/A"
     print(f"\n  >> Checkpoint #{score_count} after {query_count}Q: "
-          f"total_score={total_score:.1f} (avg {total_score/seeds:.1f}/seed)\n")
+          f"total_score={total_score:.1f} (avg {total_score/seeds:.1f}/seed) "
+          f"regime: rate={rate_str}, scale={regime['scale']:.2f}\n")
 
 print(f"\nAdaptive query selection ({remaining} queries)...")
 total_q = execute_adaptive_queries(
@@ -106,9 +110,12 @@ print(f"Cross-seed model: {len(model.counts)} buckets, "
       f"{sum(c.sum() for c in model.counts.values()):.0f} total observations")
 
 # ── Step 7: Build predictions and submit ──────────────────────────────
+regime = estimate_settlement_regime(obs, obs_n, seed_info, seeds, H, W)
+rate_str = f"{regime['observed_rate']:.1%}" if regime['observed_rate'] is not None else "N/A"
+print(f"\nRegime: rate={rate_str}, scale={regime['scale']:.2f}")
 for si in range(seeds):
     pred = build_prediction(seed_info[si], obs[si], obs_n[si], model, H, W,
-                            sim_prior=sim_priors[si])
+                            sim_prior=sim_priors[si], regime=regime)
 
     resp = session.post(f"{BASE}/submit", json={
         "round_id": round_id, "seed_index": si,
@@ -121,7 +128,7 @@ for si in range(seeds):
 print("\n-- Local scoring (10 sims per seed) --")
 for si in range(seeds):
     pred = build_prediction(seed_info[si], obs[si], obs_n[si], model, H, W,
-                            sim_prior=sim_priors[si])
+                            sim_prior=sim_priors[si], regime=regime)
     result = api.score_prediction(seed_index=si, prediction=pred, n_sims=10)
     print(f"  Seed {si}: score={result['score']:.2f}, "
           f"weighted_kl={result['weighted_kl']:.4f}, "
