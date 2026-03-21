@@ -550,12 +550,22 @@ def compute_simulator_prior(init_grid, init_settlements, W, H, n_sims=100,
         sim.base_settlements = settlements_base
 
         for i in range(sims_per_param):
-            final_grid, _ = sim.run(sim_seed=pi * 1000 + i)
+            try:
+                final_grid, _ = sim.run(sim_seed=pi * 1000 + i)
+            except Exception:
+                continue
             for y in range(H):
                 for x in range(W):
                     cls = CODE_TO_CLASS.get(int(final_grid[y, x]), 0)
                     counts[y, x, cls] += 1
             total_sims += 1
+
+    if total_sims == 0:
+        # Fallback: domain prior only
+        total_sims = 1
+        for y in range(H):
+            for x in range(W):
+                counts[y, x, 0] = 1  # plains default
 
     prior = counts / total_sims
     prior = np.maximum(prior, MIN_PROB)

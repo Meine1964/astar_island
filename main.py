@@ -72,16 +72,33 @@ for si in range(seeds):
     n_dynamic = int((sim_priors[si].max(axis=2) < 0.95).sum())
     print(f"  Seed {si}: {n_dynamic} dynamic cells in simulator prior")
 
-# ── Step 6: Adaptive query execution ──────────────────────────────────
+# ── Step 6: Adaptive query execution with periodic scoring ────────────
 obs = {i: np.zeros((H, W, NUM_CLASSES)) for i in range(seeds)}
 obs_n = {i: np.zeros((H, W)) for i in range(seeds)}
 settlement_stats = {}
+
+score_count = 0
+
+def score_all(query_count):
+    """Callback: score all seeds with current data to track progress."""
+    global score_count
+    score_count += 1
+    total_score = 0
+    for sj in range(seeds):
+        pred = build_prediction(seed_info[sj], obs[sj], obs_n[sj], model, H, W,
+                                sim_prior=sim_priors[sj],
+                                settlement_stats=settlement_stats.get(sj))
+        result = api.score_prediction(seed_index=sj, prediction=pred, n_sims=10)
+        total_score += result["score"]
+    print(f"\n  >> Checkpoint #{score_count} after {query_count}Q: "
+          f"total_score={total_score:.1f} (avg {total_score/seeds:.1f}/seed)\n")
 
 print(f"\nAdaptive query selection ({remaining} queries)...")
 total_q = execute_adaptive_queries(
     session, BASE, round_id, seed_info,
     obs, obs_n, model, sim_priors,
     seeds, H, W, budget=remaining, delay=0,
+    submit_fn=score_all, submit_every=10,
     settlement_stats=settlement_stats,
 )
 print(f"\nQueries executed: {total_q}")

@@ -128,7 +128,7 @@ print(f"\nAdaptive query selection ({remaining} queries)...")
 total_q = execute_adaptive_queries(
     session, BASE, round_id, seed_info,
     obs, obs_n, model, sim_priors,
-    seeds, H, W, budget=remaining, delay=0.22,
+    seeds, H, W, budget=remaining, delay=0.15,
     submit_fn=submit_all, submit_every=10,
     query_log_fn=lambda qn, si, vp, res: data_store.append_query(
         round_num, qn, si, vp, res),

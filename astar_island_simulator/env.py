@@ -379,8 +379,10 @@ class AstarIslandSimulator:
                 if s.tech_level >= p.longship_tech_threshold and rng.random() < 0.2:
                     s.has_longship = True
 
-            # Expansion: found new settlement
-            if s.population >= p.expansion_pop_threshold and rng.random() < p.expansion_prob:
+            # Expansion: found new settlement (cap at 200 to prevent O(n^2) blowup)
+            if (s.population >= p.expansion_pop_threshold
+                    and rng.random() < p.expansion_prob
+                    and len(self._alive(settlements)) < 200):
                 candidates = []
                 r = p.expansion_radius
                 for dy in range(-r, r + 1):
