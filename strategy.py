@@ -940,7 +940,7 @@ def build_prediction(seed_info_entry, obs_si, obs_n_si, model, H, W,
                     pred[y, x] = np.maximum(p, MIN_PROB)
 
     # ── Cap ruins at a small floor (GT averages ~1-2% ruin probability) ──
-    RUIN_FLOOR = 0.010
+    RUIN_FLOOR = 0.0080
     for y in range(H):
         for x in range(W):
             cell = grid[y][x]

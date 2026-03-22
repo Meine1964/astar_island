@@ -16,3 +16,311 @@ Cycle 1 complete. Polling every 120s...
 [2026-03-21 23:44:19]   Loaded state: 12 submitted, 17 evaluated
 [2026-03-21 23:44:19] 
 Cycle 1 complete. Polling every 120s...
+[2026-03-22 00:52:50] 
+────────────────────────────────────────────────────────────
+[2026-03-22 00:52:50] Round #18 completed — evaluating...
+[2026-03-22 00:52:50] === EVALUATING Round #18 ===
+[2026-03-22 00:52:54]   Rank: 81
+[2026-03-22 00:52:59]   Seed 0: score=76.8705, mean_KL=0.06984
+[2026-03-22 00:52:59]   Seed 1: score=79.8206, mean_KL=0.06055
+[2026-03-22 00:52:59]   Seed 2: score=76.2202, mean_KL=0.07372
+[2026-03-22 00:52:59]   Seed 3: score=79.2487, mean_KL=0.06043
+[2026-03-22 00:52:59]   Seed 4: score=75.6263, mean_KL=0.07328
+[2026-03-22 00:52:59]   Average KL: 0.06756
+[2026-03-22 00:52:59]   Per-class KL breakdown:
+[2026-03-22 00:52:59]     Empty/Plains   : KL=+0.02438  gt=0.4922  pred=0.4852
+[2026-03-22 00:52:59]     Settlement     : KL=-0.01207  gt=0.3126  pred=0.3446
+[2026-03-22 00:52:59]     Port           : KL=+0.01262  gt=0.0184  pred=0.0124
+[2026-03-22 00:52:59]     Ruin           : KL=+0.01933  gt=0.0173  pred=0.0078
+[2026-03-22 00:52:59]     Forest         : KL=+0.02310  gt=0.1395  pred=0.1281
+[2026-03-22 00:52:59]     Mountain       : KL=+0.00020  gt=0.0200  pred=0.0219
+[2026-03-22 00:52:59]   Seed 0: 54 settlements, 50 survived (93%)
+[2026-03-22 00:52:59]   Seed 1: 41 settlements, 39 survived (95%)
+[2026-03-22 00:52:59]   Seed 2: 46 settlements, 43 survived (93%)
+[2026-03-22 00:52:59]   Seed 3: 30 settlements, 29 survived (97%)
+[2026-03-22 00:52:59]   Seed 4: 53 settlements, 48 survived (91%)
+[2026-03-22 00:52:59]   Evaluation done: rank=81
+[2026-03-22 00:52:59] --- AUTO-TUNE: backtesting parameters ---
+[2026-03-22 00:53:00]   Backtesting on 9 rounds
+[2026-03-22 00:53:04]   Baseline avg KL: 0.08537
+[2026-03-22 00:53:04]   Best RUIN_FLOOR=0.012 → avg KL=0.08081
+[2026-03-22 00:53:04]   → Will update RUIN_FLOOR: 0.01 → 0.012 (+5.3%)
+[2026-03-22 00:53:04]   Applying parameter changes...
+[2026-03-22 00:53:04]   Applied RUIN_FLOOR: 0.01 → 0.012
+[2026-03-22 00:53:04]   Parameters updated!
+[2026-03-22 00:53:04]   Strategy module reloaded with new params
+[2026-03-22 01:01:09] 
+────────────────────────────────────────────────────────────
+[2026-03-22 01:01:09] Round #19 is active — submitting...
+[2026-03-22 01:01:09] === SUBMITTING Round #19 ===
+[2026-03-22 01:01:11]   Map 40x40, 5 seeds
+[2026-03-22 01:01:13]   Budget: 0/50 used, 50 remaining
+[2026-03-22 01:03:21]   Historical calibration: 90 seed-rounds, 119 buckets
+[2026-03-22 01:03:21]   Computing simulator priors (100 sims/seed)...
+[2026-03-22 01:03:54]     Seed 0: 759 dynamic cells
+[2026-03-22 01:04:29]     Seed 1: 712 dynamic cells
+[2026-03-22 01:04:57]     Seed 2: 720 dynamic cells
+[2026-03-22 01:05:24]     Seed 3: 740 dynamic cells
+[2026-03-22 01:05:44]     Seed 4: 675 dynamic cells
+[2026-03-22 01:05:44]   Submitting baseline (sim prior only)...
+[2026-03-22 01:05:54]   Baseline submitted
+[2026-03-22 01:05:54]   Running 50 adaptive queries...
+[2026-03-22 01:06:19]   Resubmit #1 after 10q (rate=1.4%, scale=0.05)
+[2026-03-22 01:06:54]   Resubmit #2 after 20q (rate=1.8%, scale=0.05)
+[2026-03-22 01:07:20]   Resubmit #3 after 30q (rate=1.7%, scale=0.05)
+[2026-03-22 01:07:49]   Resubmit #4 after 40q (rate=1.6%, scale=0.05)
+[2026-03-22 01:08:18]   Queries executed: 50
+[2026-03-22 01:08:23]   Final scale: 0.05 → 0.12
+[2026-03-22 01:08:23]     Seed 0: 200 | 1287 cells observed
+[2026-03-22 01:08:24]     Seed 1: 200 | 1134 cells observed
+[2026-03-22 01:08:24]     Seed 2: 200 | 450 cells observed
+[2026-03-22 01:08:25]     Seed 3: 200 | 450 cells observed
+[2026-03-22 01:08:26]     Seed 4: 200 | 625 cells observed
+[2026-03-22 01:08:27]   Round #19 submission complete!
+[2026-03-22 01:08:27] Round #19 submitted successfully!
+[2026-03-22 03:53:22] 
+────────────────────────────────────────────────────────────
+[2026-03-22 03:53:22] Round #19 completed — evaluating...
+[2026-03-22 03:53:22] === EVALUATING Round #19 ===
+[2026-03-22 03:53:22]   Rank: 70
+[2026-03-22 03:53:25]   Seed 0: score=87.9472, mean_KL=0.04052
+[2026-03-22 03:53:25]   Seed 1: score=87.0700, mean_KL=0.04289
+[2026-03-22 03:53:25]   Seed 2: score=90.0333, mean_KL=0.03698
+[2026-03-22 03:53:25]   Seed 3: score=90.7508, mean_KL=0.03522
+[2026-03-22 03:53:25]   Seed 4: score=90.3025, mean_KL=0.03354
+[2026-03-22 03:53:25]   Average KL: 0.03783
+[2026-03-22 03:53:25]   Per-class KL breakdown:
+[2026-03-22 03:53:25]     Empty/Plains   : KL=+0.02642  gt=0.7405  pred=0.7215
+[2026-03-22 03:53:25]     Settlement     : KL=-0.00183  gt=0.0108  pred=0.0218
+[2026-03-22 03:53:25]     Port           : KL=-0.00038  gt=0.0003  pred=0.0047
+[2026-03-22 03:53:25]     Ruin           : KL=-0.00076  gt=0.0025  pred=0.0089
+[2026-03-22 03:53:25]     Forest         : KL=+0.01418  gt=0.2251  pred=0.2204
+[2026-03-22 03:53:25]     Mountain       : KL=+0.00021  gt=0.0209  pred=0.0227
+[2026-03-22 03:53:25]   Seed 0: 61 settlements, 0 survived (0%)
+[2026-03-22 03:53:25]   Seed 1: 58 settlements, 0 survived (0%)
+[2026-03-22 03:53:25]   Seed 2: 48 settlements, 0 survived (0%)
+[2026-03-22 03:53:25]   Seed 3: 48 settlements, 0 survived (0%)
+[2026-03-22 03:53:25]   Seed 4: 36 settlements, 0 survived (0%)
+[2026-03-22 03:53:25]   Evaluation done: rank=70
+[2026-03-22 03:53:25] --- AUTO-TUNE: backtesting parameters ---
+[2026-03-22 03:53:27]   Backtesting on 10 rounds
+[2026-03-22 03:53:30]   Baseline avg KL: 0.08062
+[2026-03-22 03:53:30]   Best RUIN_FLOOR=0.012 → avg KL=0.07667
+[2026-03-22 03:53:30]   → RUIN_FLOOR already optimal at 0.012
+[2026-03-22 04:01:30] 
+────────────────────────────────────────────────────────────
+[2026-03-22 04:01:30] Round #20 is active — submitting...
+[2026-03-22 04:01:30] === SUBMITTING Round #20 ===
+[2026-03-22 04:01:31]   Map 40x40, 5 seeds
+[2026-03-22 04:01:31]   Budget: 0/50 used, 50 remaining
+[2026-03-22 04:02:05]   Historical calibration: 95 seed-rounds, 119 buckets
+[2026-03-22 04:02:05]   Computing simulator priors (100 sims/seed)...
+[2026-03-22 04:02:27]     Seed 0: 678 dynamic cells
+[2026-03-22 04:02:49]     Seed 1: 740 dynamic cells
+[2026-03-22 04:03:13]     Seed 2: 715 dynamic cells
+[2026-03-22 04:03:35]     Seed 3: 715 dynamic cells
+[2026-03-22 04:04:01]     Seed 4: 768 dynamic cells
+[2026-03-22 04:04:01]   Submitting baseline (sim prior only)...
+[2026-03-22 04:04:06]   Baseline submitted
+[2026-03-22 04:04:06]   Running 50 adaptive queries...
+[2026-03-22 04:04:10]   Resubmit #1 after 10q (rate=4.7%, scale=0.09)
+[2026-03-22 04:04:20]   Resubmit #2 after 20q (rate=5.1%, scale=0.10)
+[2026-03-22 04:04:29]   Resubmit #3 after 30q (rate=4.8%, scale=0.10)
+[2026-03-22 04:04:40]   Resubmit #4 after 40q (rate=5.0%, scale=0.10)
+[2026-03-22 04:04:51]   Queries executed: 50
+[2026-03-22 04:04:56]   Final scale: 0.10 → 0.30
+[2026-03-22 04:04:56]     Seed 0: 200 | 432 cells observed
+[2026-03-22 04:04:57]     Seed 1: 200 | 761 cells observed
+[2026-03-22 04:04:57]     Seed 2: 200 | 1053 cells observed
+[2026-03-22 04:04:58]     Seed 3: 200 | 414 cells observed
+[2026-03-22 04:04:59]     Seed 4: 200 | 1395 cells observed
+[2026-03-22 04:04:59]   Round #20 submission complete!
+[2026-03-22 04:04:59] Round #20 submitted successfully!
+[2026-03-22 06:51:36] 
+────────────────────────────────────────────────────────────
+[2026-03-22 06:51:36] Round #20 completed — evaluating...
+[2026-03-22 06:51:36] === EVALUATING Round #20 ===
+[2026-03-22 06:51:37]   Rank: 53
+[2026-03-22 06:51:41]   Seed 0: score=88.9411, mean_KL=0.03965
+[2026-03-22 06:51:41]   Seed 1: score=88.6277, mean_KL=0.04090
+[2026-03-22 06:51:41]   Seed 2: score=88.3761, mean_KL=0.04247
+[2026-03-22 06:51:41]   Seed 3: score=89.0841, mean_KL=0.04063
+[2026-03-22 06:51:41]   Seed 4: score=87.6723, mean_KL=0.04424
+[2026-03-22 06:51:41]   Average KL: 0.04158
+[2026-03-22 06:51:41]   Per-class KL breakdown:
+[2026-03-22 06:51:41]     Empty/Plains   : KL=+0.01920  gt=0.7327  pred=0.7224
+[2026-03-22 06:51:41]     Settlement     : KL=+0.00790  gt=0.0372  pred=0.0420
+[2026-03-22 06:51:41]     Port           : KL=-0.00041  gt=0.0018  pred=0.0055
+[2026-03-22 06:51:41]     Ruin           : KL=+0.00057  gt=0.0049  pred=0.0087
+[2026-03-22 06:51:41]     Forest         : KL=+0.01421  gt=0.2124  pred=0.2084
+[2026-03-22 06:51:41]     Mountain       : KL=+0.00011  gt=0.0110  pred=0.0130
+[2026-03-22 06:51:41]   Seed 0: 42 settlements, 0 survived (0%)
+[2026-03-22 06:51:41]   Seed 1: 41 settlements, 0 survived (0%)
+[2026-03-22 06:51:41]   Seed 2: 47 settlements, 0 survived (0%)
+[2026-03-22 06:51:41]   Seed 3: 45 settlements, 0 survived (0%)
+[2026-03-22 06:51:41]   Seed 4: 62 settlements, 0 survived (0%)
+[2026-03-22 06:51:41]   Evaluation done: rank=53
+[2026-03-22 06:51:41] --- AUTO-TUNE: backtesting parameters ---
+[2026-03-22 06:51:44]   Backtesting on 11 rounds
+[2026-03-22 06:51:46]   Baseline avg KL: 0.07707
+[2026-03-22 06:51:46]   Best RUIN_FLOOR=0.010 → avg KL=0.07363
+[2026-03-22 06:51:46]   → Will update RUIN_FLOOR: 0.012 → 0.01 (+4.5%)
+[2026-03-22 06:51:46]   Applying parameter changes...
+[2026-03-22 06:51:46]   Applied RUIN_FLOOR: 0.012 → 0.01
+[2026-03-22 06:51:46]   Parameters updated!
+[2026-03-22 06:51:47]   Strategy module reloaded with new params
+[2026-03-22 07:03:48] 
+────────────────────────────────────────────────────────────
+[2026-03-22 07:03:48] Round #21 is active — submitting...
+[2026-03-22 07:03:48] === SUBMITTING Round #21 ===
+[2026-03-22 07:03:48]   Map 40x40, 5 seeds
+[2026-03-22 07:03:49]   Budget: 0/50 used, 50 remaining
+[2026-03-22 07:04:40]   Historical calibration: 95 seed-rounds, 120 buckets
+[2026-03-22 07:04:41]   Computing simulator priors (100 sims/seed)...
+[2026-03-22 07:04:53]     Seed 0: 646 dynamic cells
+[2026-03-22 07:05:06]     Seed 1: 681 dynamic cells
+[2026-03-22 07:05:20]     Seed 2: 634 dynamic cells
+[2026-03-22 07:05:37]     Seed 3: 710 dynamic cells
+[2026-03-22 07:05:55]     Seed 4: 743 dynamic cells
+[2026-03-22 07:05:55]   Submitting baseline (sim prior only)...
+[2026-03-22 07:06:01]   Baseline submitted
+[2026-03-22 07:06:01]   Running 50 adaptive queries...
+[2026-03-22 07:06:11]   Resubmit #1 after 10q (rate=7.8%, scale=0.16)
+[2026-03-22 07:06:23]   Resubmit #2 after 20q (rate=8.7%, scale=0.56)
+[2026-03-22 07:06:41]   Resubmit #3 after 30q (rate=8.8%, scale=0.56)
+[2026-03-22 07:06:52]   Resubmit #4 after 40q (rate=9.2%, scale=0.59)
+[2026-03-22 07:07:04]   Queries executed: 50
+[2026-03-22 07:07:08]   Final scale: 0.60 → 0.63
+[2026-03-22 07:07:08]     Seed 0: 200 | 545 cells observed
+[2026-03-22 07:07:10]     Seed 1: 200 | 378 cells observed
+[2026-03-22 07:07:12]     Seed 2: 200 | 675 cells observed
+[2026-03-22 07:07:13]     Seed 3: 200 | 1269 cells observed
+[2026-03-22 07:07:16]     Seed 4: 200 | 1314 cells observed
+[2026-03-22 07:07:17]   Round #21 submission complete!
+[2026-03-22 07:07:17] Round #21 submitted successfully!
+[2026-03-22 11:36:22] ======================================================================
+[2026-03-22 11:36:22] OVERNIGHT AUTONOMOUS HANDLER — Starting
+[2026-03-22 11:36:22] ======================================================================
+[2026-03-22 11:36:22]   Loaded state: 15 submitted, 20 evaluated
+[2026-03-22 11:36:22] 
+────────────────────────────────────────────────────────────
+[2026-03-22 11:36:22] Round #21 completed — evaluating...
+[2026-03-22 11:36:22] === EVALUATING Round #21 ===
+[2026-03-22 11:36:23]   Rank: 51
+[2026-03-22 11:36:25]   Seed 0: score=91.1985, mean_KL=0.03088
+[2026-03-22 11:36:25]   Seed 1: score=91.1036, mean_KL=0.03147
+[2026-03-22 11:36:25]   Seed 2: score=91.6482, mean_KL=0.03080
+[2026-03-22 11:36:25]   Seed 3: score=89.0916, mean_KL=0.03587
+[2026-03-22 11:36:25]   Seed 4: score=86.2220, mean_KL=0.04343
+[2026-03-22 11:36:25]   Average KL: 0.03449
+[2026-03-22 11:36:25]   Per-class KL breakdown:
+[2026-03-22 11:36:25]     Empty/Plains   : KL=+0.01845  gt=0.6944  pred=0.6824
+[2026-03-22 11:36:25]     Settlement     : KL=-0.00681  gt=0.0575  pred=0.0761
+[2026-03-22 11:36:25]     Port           : KL=+0.00025  gt=0.0032  pred=0.0058
+[2026-03-22 11:36:25]     Ruin           : KL=+0.00270  gt=0.0071  pred=0.0085
+[2026-03-22 11:36:25]     Forest         : KL=+0.01969  gt=0.2180  pred=0.2054
+[2026-03-22 11:36:25]     Mountain       : KL=+0.00020  gt=0.0199  pred=0.0218
+[2026-03-22 11:36:25]   Seed 0: 32 settlements, 6 survived (19%)
+[2026-03-22 11:36:25]   Seed 1: 34 settlements, 11 survived (32%)
+[2026-03-22 11:36:25]   Seed 2: 31 settlements, 6 survived (19%)
+[2026-03-22 11:36:25]   Seed 3: 43 settlements, 15 survived (35%)
+[2026-03-22 11:36:25]   Seed 4: 58 settlements, 9 survived (16%)
+[2026-03-22 11:36:26]   Evaluation done: rank=51
+[2026-03-22 11:36:26] --- AUTO-TUNE: backtesting parameters ---
+[2026-03-22 11:36:29]   Backtesting on 12 rounds
+[2026-03-22 11:36:38]   Baseline avg KL: 0.07352
+[2026-03-22 11:36:38]   Best RUIN_FLOOR=0.010 → avg KL=0.07046
+[2026-03-22 11:36:38]   → RUIN_FLOOR already optimal at 0.01
+[2026-03-22 11:36:38] 
+────────────────────────────────────────────────────────────
+[2026-03-22 11:36:38] Round #22 is active — submitting...
+[2026-03-22 11:36:38] === SUBMITTING Round #22 ===
+[2026-03-22 11:36:38]   Map 40x40, 5 seeds
+[2026-03-22 11:36:38]   Budget: 0/50 used, 50 remaining
+[2026-03-22 11:37:31]   Historical calibration: 95 seed-rounds, 120 buckets
+[2026-03-22 11:37:32]   Computing simulator priors (100 sims/seed)...
+[2026-03-22 11:38:01]     Seed 0: 597 dynamic cells
+[2026-03-22 11:38:30]     Seed 1: 649 dynamic cells
+[2026-03-22 11:38:59]     Seed 2: 629 dynamic cells
+[2026-03-22 11:39:41]     Seed 3: 733 dynamic cells
+[2026-03-22 11:40:05]     Seed 4: 773 dynamic cells
+[2026-03-22 11:40:05]   Submitting baseline (sim prior only)...
+[2026-03-22 11:40:10]   Baseline submitted
+[2026-03-22 11:40:10]   Running 50 adaptive queries...
+[2026-03-22 11:40:16]   Resubmit #1 after 10q (rate=4.7%, scale=0.09)
+[2026-03-22 11:40:25]   Resubmit #2 after 20q (rate=4.4%, scale=0.28)
+[2026-03-22 11:40:34]   Resubmit #3 after 30q (rate=4.6%, scale=0.29)
+[2026-03-22 11:40:44]   Resubmit #4 after 40q (rate=4.5%, scale=0.28)
+[2026-03-22 11:40:54]   Queries executed: 50
+[2026-03-22 11:40:59]   Final scale: 0.09 → 0.30
+[2026-03-22 11:41:00]     Seed 0: 200 | 225 cells observed
+[2026-03-22 11:41:01]     Seed 1: 200 | 507 cells observed
+[2026-03-22 11:41:02]     Seed 2: 200 | 603 cells observed
+[2026-03-22 11:41:02]     Seed 3: 200 | 1215 cells observed
+[2026-03-22 11:41:03]     Seed 4: 200 | 1179 cells observed
+[2026-03-22 11:41:04]   Round #22 submission complete!
+[2026-03-22 11:41:04] Round #22 submitted successfully!
+[2026-03-22 11:41:04] 
+Cycle 1 complete. Polling every 120s...
+[2026-03-22 12:49:24] 
+────────────────────────────────────────────────────────────
+[2026-03-22 12:49:24] Round #22 completed — evaluating...
+[2026-03-22 12:49:24] === EVALUATING Round #22 ===
+[2026-03-22 12:49:28]   Rank: 77
+[2026-03-22 12:49:41]   Seed 0: score=81.5584, mean_KL=0.05647
+[2026-03-22 12:49:41]   Seed 1: score=80.5858, mean_KL=0.05610
+[2026-03-22 12:49:41]   Seed 2: score=83.2079, mean_KL=0.05770
+[2026-03-22 12:49:41]   Seed 3: score=81.7749, mean_KL=0.06505
+[2026-03-22 12:49:41]   Seed 4: score=82.8256, mean_KL=0.06208
+[2026-03-22 12:49:41]   Average KL: 0.05948
+[2026-03-22 12:49:41]   Per-class KL breakdown:
+[2026-03-22 12:49:41]     Empty/Plains   : KL=+0.03110  gt=0.7392  pred=0.7206
+[2026-03-22 12:49:41]     Settlement     : KL=+0.00822  gt=0.0254  pred=0.0389
+[2026-03-22 12:49:41]     Port           : KL=-0.00011  gt=0.0010  pred=0.0047
+[2026-03-22 12:49:41]     Ruin           : KL=+0.00101  gt=0.0029  pred=0.0071
+[2026-03-22 12:49:41]     Forest         : KL=+0.01901  gt=0.2063  pred=0.2016
+[2026-03-22 12:49:41]     Mountain       : KL=+0.00025  gt=0.0253  pred=0.0271
+[2026-03-22 12:49:41]   Seed 0: 30 settlements, 1 survived (3%)
+[2026-03-22 12:49:41]   Seed 1: 31 settlements, 0 survived (0%)
+[2026-03-22 12:49:41]   Seed 2: 33 settlements, 1 survived (3%)
+[2026-03-22 12:49:41]   Seed 3: 53 settlements, 3 survived (6%)
+[2026-03-22 12:49:41]   Seed 4: 44 settlements, 0 survived (0%)
+[2026-03-22 12:49:41]   Evaluation done: rank=77
+[2026-03-22 12:49:41] --- AUTO-TUNE: backtesting parameters ---
+[2026-03-22 12:49:41]   Backtesting on 13 rounds
+[2026-03-22 12:49:44]   Baseline avg KL: 0.07244
+[2026-03-22 12:49:44]   Best RUIN_FLOOR=0.008 → avg KL=0.06973
+[2026-03-22 12:49:44]   → Will update RUIN_FLOOR: 0.01 → 0.008 (+3.7%)
+[2026-03-22 12:49:44]   Applying parameter changes...
+[2026-03-22 12:49:44]   Applied RUIN_FLOOR: 0.01 → 0.008
+[2026-03-22 12:49:44]   Parameters updated!
+[2026-03-22 12:49:44]   Strategy module reloaded with new params
+[2026-03-22 13:03:50] 
+────────────────────────────────────────────────────────────
+[2026-03-22 13:03:50] Round #23 is active — submitting...
+[2026-03-22 13:03:50] === SUBMITTING Round #23 ===
+[2026-03-22 13:03:52]   Map 40x40, 5 seeds
+[2026-03-22 13:03:53]   Budget: 0/50 used, 50 remaining
+[2026-03-22 13:06:21]   Historical calibration: 95 seed-rounds, 119 buckets
+[2026-03-22 13:06:21]   Computing simulator priors (100 sims/seed)...
+[2026-03-22 13:06:39]     Seed 0: 747 dynamic cells
+[2026-03-22 13:06:57]     Seed 1: 775 dynamic cells
+[2026-03-22 13:07:16]     Seed 2: 690 dynamic cells
+[2026-03-22 13:07:36]     Seed 3: 762 dynamic cells
+[2026-03-22 13:07:50]     Seed 4: 700 dynamic cells
+[2026-03-22 13:07:50]   Submitting baseline (sim prior only)...
+[2026-03-22 13:07:55]   Baseline submitted
+[2026-03-22 13:07:55]   Running 50 adaptive queries...
+[2026-03-22 13:08:06]   Resubmit #1 after 10q (rate=16.9%, scale=1.02)
+[2026-03-22 13:08:24]   Resubmit #2 after 20q (rate=18.0%, scale=1.07)
+[2026-03-22 13:08:46]   Resubmit #3 after 30q (rate=17.9%, scale=1.06)
+[2026-03-22 13:09:07]   Resubmit #4 after 40q (rate=17.6%, scale=1.06)
+[2026-03-22 13:09:20]   Queries executed: 50
+[2026-03-22 13:09:26]   Final scale: 1.08 → 1.34
+[2026-03-22 13:09:26]     Seed 0: 200 | 441 cells observed
+[2026-03-22 13:09:27]     Seed 1: 200 | 450 cells observed
+[2026-03-22 13:09:29]     Seed 2: 200 | 1314 cells observed
+[2026-03-22 13:09:30]     Seed 3: 200 | 1386 cells observed
+[2026-03-22 13:09:31]     Seed 4: 200 | 350 cells observed
+[2026-03-22 13:09:31]   Round #23 submission complete!
+[2026-03-22 13:09:31] Round #23 submitted successfully!
